@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Jh Seller | Admin Portal</title>
+    <style>
+        /* Modern Premium Dark/Teal Theme */
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
+        body { background: #0f172a; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #ffffff; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.3); overflow: hidden; }
+        
+        /* Header */
+        .inbox-header { background: #005c4b; color: white; padding: 20px; font-size: 20px; font-weight: bold; text-align: center; }
+        
+        /* Chat List Item */
+        .user-item { padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.3s; }
+        .user-item:hover { background: #f0fdf4; }
+        .user-phone { font-weight: 600; color: #1e293b; }
+        
+        /* Chat Area */
+        #chat-view { display: none; flex-direction: column; height: 100%; }
+        .chat-header { background: #008069; color: white; padding: 15px; display: flex; align-items: center; gap: 10px; }
+        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; background: #e5ddd5; display: flex; flex-direction: column; gap: 10px; }
+        
+        /* Bubbles */
+        .msg { max-width: 85%; padding: 10px 15px; border-radius: 15px; font-size: 14px; position: relative; }
+        .sent-by-me { background: #d9fdd3; align-self: flex-end; border-bottom-right-radius: 0; }
+        .received-by-me { background: #ffffff; align-self: flex-start; border-bottom-left-radius: 0; }
+        
+        /* Input */
+        .chat-input-area { padding: 15px; background: #f0f2f5; display: flex; gap: 10px; }
+        input[type="text"] { flex: 1; padding: 12px; border: none; border-radius: 20px; outline: none; }
+        .send-btn { background: #008069; color: white; border: none; padding: 10px 20px; border-radius: 50px; cursor: pointer; }
+    </style>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+        // Updated API Keys for newpro-affc8
+        const firebaseConfig = {
+            apiKey: "AIzaSyDbjIDUk4bnJuYfSQZua61d...", 
+            authDomain: "newpro-affc8.firebaseapp.com",
+            projectId: "newpro-affc8",
+            storageBucket: "newpro-affc8.firebasestorage.app",
+            messagingSenderId: "1080341611919",
+            appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        
+        // ... (Baaki logic wahi rahegi jo aapke purane code mein thi)
+        console.log("Firebase initialized for Jh Seller Admin!");
+    </script>
+</head>
+<body>
+    <div class="chat-container">
+        <!-- Content goes here -->
+        <div class="inbox-header">Jh Seller Dashboard</div>
+        <div id="userList"></div>
+    </div>
+</body>
+</html>
