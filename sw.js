@@ -1,9 +1,10 @@
-const CACHE_NAME = "teachhub-cache-v1";
+const CACHE_NAME = "teachhub-cache-v2";
 const urlsToCache = [
   "./",
   "./index.html",
   "./manifest.json",
-  "./logo.svg"
+  "./logo-192.png",
+  "./logo-512.png"
 ];
 
 self.addEventListener("install", (event) => {
