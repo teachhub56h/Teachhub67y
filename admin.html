@@ -2,63 +2,43 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>WhatsApp Customer Support</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Customer Support</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-        html, body { height: 100%; overflow: hidden; background: #dadbd3; }
-        body { display: flex; justify-content: center; align-items: center; }
-        .chat-container { width: 100%; max-width: 450px; height: 100%; background: #efeae2; display: flex; flex-direction: column; overflow: hidden; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { height: 100vh; display: flex; flex-direction: column; background: #e5ddd5; }
         
-        /* Header */
-        .chat-header { background: #008069; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+        /* Fixed Header */
+        .header { background: #008069; color: white; padding: 15px; font-weight: bold; }
         
-        /* Chat Messages */
-        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: #efeae2; }
-        .msg { max-width: 80%; padding: 6px 7px; border-radius: 8px; font-size: 14.5px; position: relative; display: flex; flex-direction: column; gap: 3px; }
-        .sent-by-me { background: #d9fdd3; align-self: flex-end; border-top-right-radius: 0; }
-        .received-by-me { background: #ffffff; align-self: flex-start; border-top-left-radius: 0; }
-        .msg img, .msg video { max-width: 100%; max-height: 200px; border-radius: 6px; object-fit: contain; }
+        /* Chat container - Fixed height to avoid overlap */
+        #chatBox { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
         
-        /* Meta & Ticks */
-        .msg-meta { align-self: flex-end; font-size: 10px; color: #667781; display: flex; align-items: center; gap: 3px; }
-        .tick { font-weight: bold; font-size: 12px; }
-        .tick.read { color: #53bdeb; }
-
-        /* Input */
-        .chat-input-area { padding: 10px; background: #f0f2f5; display: flex; align-items: center; gap: 8px; flex-shrink: 0; padding-bottom: env(safe-area-inset-bottom); }
-        .input-container { flex: 1; background: #fff; border-radius: 24px; display: flex; align-items: center; padding: 2px 12px; }
-        .input-container input { flex: 1; border: none; outline: none; padding: 10px; }
-        .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #54656f; }
-        .icon-btn.recording { color: #ea0038; animation: blink 1s infinite; }
-        .send-btn { background: #005c4b; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; }
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+        /* Input area fixed at bottom */
+        .input-area { background: #f0f2f5; padding: 10px; display: flex; align-items: center; gap: 5px; }
+        input { flex: 1; padding: 10px; border-radius: 20px; border: none; }
+        button { background: #008069; color: white; border: none; padding: 10px 15px; border-radius: 20px; }
+        
+        .msg { max-width: 80%; padding: 10px; border-radius: 8px; }
+        .received { background: #ffffff; align-self: flex-start; }
+        .sent { background: #d9fdd3; align-self: flex-end; }
     </style>
 </head>
 <body>
 
-<div class="chat-container">
-    <div class="chat-header">
-        <div class="name">Customer Support</div>
-    </div>
-    <div class="chat-messages" id="chatBox"></div>
-    <div class="chat-input-area">
-        <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
-        <button class="icon-btn" onclick="document.getElementById('mediaInput').click()">📎</button>
-        <div class="input-container">
-            <input type="text" id="msgInput" placeholder="Type a message...">
-        </div>
-        <button class="icon-btn" id="voiceBtn">🎙️</button>
-        <button class="send-btn" id="sendBtn">➤</button>
-    </div>
+<div class="header">Customer Support</div>
+<div id="chatBox"></div>
+<div class="input-area">
+    <input type="text" id="msgInput" placeholder="Type a message...">
+    <button onclick="sendMsg()">➤</button>
 </div>
 
 <script type="module">
     import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, updateDoc, doc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
     const firebaseConfig = {
-        apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
+        apiKey: "AIzaSyDbjIDUk4bnJuVfSQZua61dyiDsjjC6uiU",
         authDomain: "newpro-affc8.firebaseapp.com",
         projectId: "newpro-affc8",
         storageBucket: "newpro-affc8.firebasestorage.app",
@@ -68,50 +48,31 @@
 
     const app = initializeApp(firebaseConfig);
     const db = getFirestore(app);
-    
-    const chatBox = document.getElementById('chatBox');
-    let myChatDocId = localStorage.getItem('my_chat_session_id') || ("user_" + Date.now());
-    localStorage.setItem('my_chat_session_id', myChatDocId);
 
-    // Render Messages
-    onSnapshot(query(collection(db, "group_messages", myChatDocId, "messages"), orderBy("time_now", "asc")), (snapshot) => {
-        chatBox.innerHTML = "";
-        snapshot.forEach((docSnap) => {
-            const d = docSnap.data();
+    // UNIQUE ID: Yahan wo ID dalain jo Admin panel mein show ho rahi hai
+    // Ya phir device ID use karain taake chat save rahay
+    const activeDocId = "user_device_001"; 
+
+    onSnapshot(query(collection(db, "group_messages", activeDocId, "messages"), orderBy("time_now", "asc")), (snap) => {
+        const box = document.getElementById('chatBox');
+        box.innerHTML = "";
+        snap.forEach(d => {
+            const msg = d.data();
             const div = document.createElement('div');
-            div.className = `msg ${d.sender === 'user' ? 'sent-by-me' : 'received-by-me'}`;
-            
-            let content = d.type === 'text' ? `<span>${d.message_text}</span>` : 
-                          d.type === 'image' ? `<img src="${d.file_url}">` : 
-                          d.type === 'video' ? `<video controls src="${d.file_url}"></video>` : 
-                          `<audio controls src="${d.file_url}"></audio>`;
-            
-            div.innerHTML = `${content} <div class="msg-meta"><span>${new Date(d.time_now).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span> <span class="tick ${d.status === 'read' ? 'read' : ''}">${d.sender === 'user' ? (d.status === 'read' ? '✓✓' : '✓') : ''}</span></div>`;
-            chatBox.appendChild(div);
+            div.className = `msg ${msg.sender === 'admin' ? 'received' : 'sent'}`;
+            div.innerText = msg.message_text || "File sent";
+            box.appendChild(div);
         });
-        chatBox.scrollTop = chatBox.scrollHeight;
+        box.scrollTop = box.scrollHeight;
     });
 
-    // Voice Recorder
-    let mediaRecorder, audioChunks = [], isRecording = false;
-    document.getElementById('voiceBtn').onclick = async () => {
-        if (!isRecording) {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-            mediaRecorder.onstop = async () => {
-                const base64 = await new Promise(r => { let reader = new FileReader(); reader.onload = () => r(reader.result); reader.readAsDataURL(new Blob(audioChunks, {type: 'audio/mp3'})); });
-                await addDoc(collection(db, "group_messages", myChatDocId, "messages"), { sender: "user", file_url: base64, type: "audio", time_now: Date.now(), status: "sent" });
-            };
-            mediaRecorder.start(); isRecording = true; document.getElementById('voiceBtn').classList.add('recording');
-        } else { mediaRecorder.stop(); isRecording = false; document.getElementById('voiceBtn').classList.remove('recording'); }
-    };
-
-    // Send Text & Media
-    document.getElementById('sendBtn').onclick = async () => {
-        const val = document.getElementById('msgInput').value;
-        if(!val) return;
-        await addDoc(collection(db, "group_messages", myChatDocId, "messages"), { sender: "user", message_text: val, type: "text", time_now: Date.now(), status: "sent" });
+    window.sendMsg = async () => {
+        const text = document.getElementById('msgInput').value;
+        if(!text) return;
+        await addDoc(collection(db, "group_messages", activeDocId, "messages"), {
+            sender: 'user', type: 'text', message_text: text, time_now: Date.now()
+        });
+        await updateDoc(doc(db, "group_messages", activeDocId), { lastUpdated: Date.now() });
         document.getElementById('msgInput').value = "";
     };
 </script>
