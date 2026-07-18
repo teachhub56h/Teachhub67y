@@ -3,63 +3,204 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Jh Seller | Admin Portal</title>
+    <title>WhatsApp Admin Panel</title>
     <style>
-        /* Modern Premium Dark/Teal Theme */
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', sans-serif; }
-        body { background: #0f172a; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #ffffff; display: flex; flex-direction: column; box-shadow: 0 10px 25px rgba(0,0,0,0.3); overflow: hidden; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { 
+            background: #dadbd3; 
+            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); 
+            display: flex; justify-content: center; align-items: center; height: 100vh; 
+        }
+        .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #efeae2; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
         
-        /* Header */
-        .inbox-header { background: #005c4b; color: white; padding: 20px; font-size: 20px; font-weight: bold; text-align: center; }
+        #inbox-view { display: flex; flex-direction: column; height: 100%; background: #ffffff; }
+        .inbox-header { background: #008069; color: white; padding: 16px; font-size: 18px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+        .user-list { flex: 1; overflow-y: auto; padding: 8px 0; background: #ffffff; }
         
-        /* Chat List Item */
-        .user-item { padding: 15px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.3s; }
-        .user-item:hover { background: #f0fdf4; }
-        .user-phone { font-weight: 600; color: #1e293b; }
+        .user-item { display: flex; flex-direction: column; padding: 12px 16px; border-bottom: 1px solid #f0f0f0; transition: background 0.2s; }
+        .user-item:hover { background: #f5f6f6; }
+        .user-clickable-area { display: flex; align-items: center; gap: 15px; width: 100%; cursor: pointer; }
+        .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #00a884; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; }
+        .user-details { flex: 1; }
+        .user-phone { font-size: 15px; font-weight: 600; color: #111b21; }
+        .user-subtitle { font-size: 12px; color: #667781; margin-top: 2px; }
         
-        /* Chat Area */
+        .status-container { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e1e1e1; flex-wrap: wrap; }
+        .status-tag { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 12px; color: white; background-color: #8696a0; }
+        .status-tag.pending { background-color: #e53935; }
+        .status-tag.plan1 { background-color: #1e88e5; }
+        .status-tag.plan2 { background-color: #8e24aa; }
+        .status-tag.completed { background-color: #43a047; }
+        .status-tag.custom { background-color: #f4511e; }
+        .status-selector { font-size: 12px; padding: 3px 6px; border-radius: 4px; border: 1px solid #ccc; outline: none; background: #fff; cursor: pointer; }
+        .remove-status-btn { font-size: 11px; padding: 3px 6px; background: #d32f2f; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .unread-badge { background-color: #25d366; color: white; font-size: 11px; font-weight: bold; min-width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+
         #chat-view { display: none; flex-direction: column; height: 100%; }
-        .chat-header { background: #008069; color: white; padding: 15px; display: flex; align-items: center; gap: 10px; }
-        .chat-messages { flex: 1; padding: 20px; overflow-y: auto; background: #e5ddd5; display: flex; flex-direction: column; gap: 10px; }
-        
-        /* Bubbles */
-        .msg { max-width: 85%; padding: 10px 15px; border-radius: 15px; font-size: 14px; position: relative; }
-        .sent-by-me { background: #d9fdd3; align-self: flex-end; border-bottom-right-radius: 0; }
-        .received-by-me { background: #ffffff; align-self: flex-start; border-bottom-left-radius: 0; }
-        
-        /* Input */
-        .chat-input-area { padding: 15px; background: #f0f2f5; display: flex; gap: 10px; }
-        input[type="text"] { flex: 1; padding: 12px; border: none; border-radius: 20px; outline: none; }
-        .send-btn { background: #008069; color: white; border: none; padding: 10px 20px; border-radius: 50px; cursor: pointer; }
+        .chat-header { background: #004d40; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .back-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; }
+        .profile-img { width: 40px; height: 40px; border-radius: 50%; background: #ccc; object-fit: cover; }
+        .header-info .name { font-size: 16px; font-weight: 600; }
+        .header-info .status { font-size: 12px; color: #b2dfdb; }
+        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-color: #efeae2; }
+        .msg { max-width: 80%; padding: 6px 7px 6px 9px; border-radius: 8px; font-size: 14.5px; position: relative; display: flex; flex-direction: column; gap: 5px; }
+        .msg.sent-by-me { background: #d9fdd3; align-self: flex-end; color: #111b21; }
+        .msg.received-by-me { background: #ffffff; align-self: flex-start; color: #111b21; }
+        .msg audio { max-width: 100%; }
+        .msg-meta { align-self: flex-end; font-size: 10px; color: #667781; }
+        .chat-input-area { padding: 10px; background: #f0f2f5; display: flex; align-items: center; gap: 8px; }
+        .input-container { flex: 1; background: #fff; border-radius: 24px; display: flex; align-items: center; padding: 2px 12px; }
+        .input-container input[type="text"] { flex: 1; border: none; outline: none; padding: 10px 4px; font-size: 15px; background: transparent; }
+        .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #54656f; }
+        .send-btn { background: #005c4b; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; }
     </style>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
-        // Updated API Keys for newpro-affc8
+        // Updated API Keys for Project newpro-affc8
         const firebaseConfig = {
             apiKey: "AIzaSyDbjIDUk4bnJuYfSQZua61d...", 
             authDomain: "newpro-affc8.firebaseapp.com",
             projectId: "newpro-affc8",
             storageBucket: "newpro-affc8.firebasestorage.app",
             messagingSenderId: "1080341611919",
-            appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
+            appId: "1:1080341611919:web:373d7fa13901e4b41c77fa",
+            measurementId: "G-CV3NDNC8TC"
         };
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        
-        // ... (Baaki logic wahi rahegi jo aapke purane code mein thi)
-        console.log("Firebase initialized for Jh Seller Admin!");
+
+        // --- Baaki ka original logic wahi hai ---
+        const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
+        const inboxView = document.getElementById('inbox-view');
+        const chatView = document.getElementById('chat-view');
+        const userListDiv = document.getElementById('userList');
+        const chatTitle = document.getElementById('chatTitle');
+        const chatBox = document.getElementById('chatBox');
+        const msgInput = document.getElementById('msgInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const mediaInput = document.getElementById('mediaInput');
+        const voiceBtn = document.getElementById('voiceBtn');
+
+        let activeDocId = "";
+        let currentSender = "admin";
+        let activeChatListener = null;
+        let mediaRecorder, audioChunks = [], isRecording = false;
+
+        let isWindowActive = true;
+        window.addEventListener('focus', () => { isWindowActive = true; });
+        window.addEventListener('blur', () => { isWindowActive = false; });
+
+        function getUserFriendlyName(docId) {
+            let savedNames = localStorage.getItem('chatUserNames');
+            savedNames = savedNames ? JSON.parse(savedNames) : {};
+            if (savedNames[docId]) return savedNames[docId];
+            const assignedNumbers = Object.values(savedNames).map(name => parseInt(name.replace("User ", "")) || 0);
+            const nextNumber = assignedNumbers.length > 0 ? Math.max(...assignedNumbers) + 1 : 1;
+            const newName = "User " + nextNumber;
+            savedNames[docId] = newName;
+            localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
+            return newName;
+        }
+
+        async function updateCustomerStatus(docId, newStatus) {
+            try {
+                const docRef = doc(db, "group_messages", docId);
+                await updateDoc(docRef, { statusTag: newStatus });
+            } catch (error) { console.error("Error updating status: ", error); }
+        }
+
+        window.handleStatusChange = function(selectElement, docId) {
+            const val = selectElement.value;
+            if (val === 'custom') {
+                const customVal = prompt("Enter Custom Status:");
+                if (customVal && customVal.trim() !== "") updateCustomerStatus(docId, customVal.trim());
+            } else updateCustomerStatus(docId, val);
+        };
+
+        window.removeStatus = function(docId) {
+            if (confirm("Remove status?")) updateCustomerStatus(docId, "");
+        };
+
+        window.openChat = function(docId, userName) {
+            activeDocId = docId;
+            inboxView.style.display = 'none';
+            chatView.style.display = 'flex';
+            chatTitle.innerText = userName;
+            const q = query(collection(db, "group_messages", activeDocId, "messages"), orderBy("time_now", "asc"));
+            activeChatListener = onSnapshot(q, (snapshot) => {
+                chatBox.innerHTML = ""; 
+                snapshot.forEach((snapshotDoc) => {
+                    const data = snapshotDoc.data();
+                    renderMessage(snapshotDoc.id, data.sender, data.type || 'text', data.file_url || data.message_text, data.time_label, data.status);
+                });
+                chatBox.scrollTop = chatBox.scrollHeight; 
+            });
+        };
+
+        async function loadInbox() {
+            inboxView.style.display = 'flex';
+            chatView.style.display = 'none';
+            if (activeChatListener) { activeChatListener(); activeChatListener = null; }
+            onSnapshot(collection(db, "group_messages"), (querySnapshot) => {
+                userListDiv.innerHTML = "";
+                querySnapshot.forEach((documentSnapshot) => {
+                    const docId = documentSnapshot.id;
+                    const userName = getUserFriendlyName(docId);
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'user-item';
+                    itemDiv.innerHTML = `
+                        <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
+                            <div class="user-avatar">👤</div>
+                            <div class="user-details"><div class="user-phone">${userName}</div></div>
+                        </div>
+                    `;
+                    userListDiv.appendChild(itemDiv);
+                });
+            });
+        }
+
+        window.goBackToInbox = function() { loadInbox(); };
+
+        function renderMessage(id, sender, type, content, timeStr, status) {
+            const msgDiv = document.createElement('div');
+            const isMe = sender === currentSender;
+            msgDiv.classList.add('msg', isMe ? 'sent-by-me' : 'received-by-me');
+            if (type === 'audio') {
+                const audio = document.createElement('audio');
+                audio.src = content;
+                audio.controls = true;
+                msgDiv.appendChild(audio);
+            } else {
+                const text = document.createElement('span');
+                text.innerText = content;
+                msgDiv.appendChild(text);
+            }
+            chatBox.appendChild(msgDiv);
+        }
+
+        async function sendMessageToFirebase(type, content) {
+            if (!activeDocId) return;
+            await addDoc(collection(db, "group_messages", activeDocId, "messages"), {
+                sender: currentSender, type: type, time_now: Date.now(), message_text: content, file_url: content
+            });
+        }
+
+        sendBtn.addEventListener('click', () => { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } });
+        loadInbox();
     </script>
 </head>
 <body>
-    <div class="chat-container">
-        <!-- Content goes here -->
-        <div class="inbox-header">Jh Seller Dashboard</div>
-        <div id="userList"></div>
+<div class="chat-container">
+    <div id="inbox-view"><div class="inbox-header">Conversations</div><div class="user-list" id="userList"></div></div>
+    <div id="chat-view">
+        <div class="chat-header"><button class="back-btn" onclick="goBackToInbox()">←</button><div class="header-info"><div class="name" id="chatTitle">Admin</div></div></div>
+        <div class="chat-messages" id="chatBox"></div>
+        <div class="chat-input-area"><input type="text" id="msgInput" placeholder="Reply..."><button class="send-btn" id="sendBtn">➤</button></div>
     </div>
+</div>
 </body>
 </html>
