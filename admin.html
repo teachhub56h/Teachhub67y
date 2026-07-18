@@ -80,7 +80,7 @@
         import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
         const firebaseConfig = {
-            apiKey: "AIzaSyDbjIDUk4bnJuVfSQZua61dyiDsjjC6uiU",
+            apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
             authDomain: "newpro-affc8.firebaseapp.com",
             projectId: "newpro-affc8",
             storageBucket: "newpro-affc8.firebasestorage.app",
@@ -192,10 +192,10 @@
         async function sendMessageToFirebase(type, content) {
             const timestamp = Date.now();
             const userRootRef = doc(db, "group_messages", myChatDocId);
-            
-            // Set session info if new
-            import("https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js").then(async ({ setDoc }) => {
-                await setDoc(userRootRef, { sessionCreatedAt: timestamp, statusTag: "" }, { merge: true });
+            await updateDoc(userRootRef, { lastUpdated: timestamp }).catch(async () => {
+                import("https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js").then(async ({ setDoc }) => {
+                    await setDoc(userRootRef, { sessionCreatedAt: timestamp, statusTag: "" }, { merge: true });
+                });
             });
 
             const messageData = {
@@ -244,6 +244,31 @@
         });
 
         loadChatSession();
+    </script>
+
+    <script>
+      // Service Worker registration
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.register('sw.js');
+      }
+
+      let deferredPrompt;
+      window.addEventListener('beforeinstallprompt', (e) => {
+        // Browser ka default prompt roko
+        e.preventDefault();
+        // Prompt ko save karo
+        deferredPrompt = e;
+      });
+
+      // User ko tab prompt dikhao jab wo screen par kahein bhi click kare
+      window.addEventListener('click', () => {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          deferredPrompt.userChoice.then((choiceResult) => {
+            deferredPrompt = null;
+          });
+        }
+      }, { once: true });
     </script>
 </head>
 <body>
