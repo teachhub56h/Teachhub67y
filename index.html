@@ -3,129 +3,512 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Complete Admin Panel</title>
+    <title>WhatsApp Admin Panel</title>
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
-        body { background: #dadbd3; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #efeae2; display: flex; flex-direction: column; overflow: hidden; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        body { 
+            background: #dadbd3; 
+            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); 
+            display: flex; justify-content: center; align-items: center; height: 100vh; 
+        }
+        .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #efeae2; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
         
-        /* Inbox Styles */
-        .user-item { padding: 15px; border-bottom: 1px solid #ddd; display: flex; justify-content: space-between; background: white; cursor: pointer; align-items: center; }
-        .new-badge { background: #25d366; color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; display: none; }
+        /* 📱 INBOX VIEW STYLING */
+        #inbox-view { display: flex; flex-direction: column; height: 100%; background: #ffffff; }
+        .inbox-header { background: #008069; color: white; padding: 16px; font-size: 18px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
+        .user-list { flex: 1; overflow-y: auto; padding: 8px 0; background: #ffffff; }
+        
+        /* Modern User Item style with status manager */
+        .user-item { 
+            display: flex; flex-direction: column; padding: 12px 16px; 
+            border-bottom: 1px solid #f0f0f0; transition: background 0.2s; 
+        }
+        .user-item:hover { background: #f5f6f6; }
+        
+        /* Clickable main row to enter chat cleanly without overlap */
+        .user-clickable-area {
+            display: flex; align-items: center; gap: 15px; width: 100%; cursor: pointer;
+        }
+        
+        .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #00a884; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; }
+        .user-details { flex: 1; }
+        .user-phone { font-size: 15px; font-weight: 600; color: #111b21; }
+        .user-subtitle { font-size: 12px; color: #667781; margin-top: 2px; }
+        
+        /* 🏷️ STATUS MANAGER & TAGS STYLING */
+        .status-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed #e1e1e1;
+            flex-wrap: wrap;
+        }
+        .status-tag {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 12px;
+            color: white;
+            background-color: #8696a0;
+        }
+        .status-tag.pending { background-color: #e53935; } /* Red */
+        .status-tag.plan1 { background-color: #1e88e5; }   /* Blue */
+        .status-tag.plan2 { background-color: #8e24aa; }   /* Purple */
+        .status-tag.completed { background-color: #43a047; } /* Green */
+        .status-tag.custom { background-color: #f4511e; }   /* Orange */
 
-        /* Chat Styles */
-        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
-        .msg { max-width: 80%; padding: 10px; border-radius: 8px; }
-        .sent { background: #d9fdd3; align-self: flex-end; }
-        .received { background: #ffffff; align-self: flex-start; }
-        img, video, audio { max-width: 200px; display: block; }
+        .status-selector {
+            font-size: 12px;
+            padding: 3px 6px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            outline: none;
+            background: #fff;
+            cursor: pointer;
+        }
+        .remove-status-btn {
+            font-size: 11px;
+            padding: 3px 6px;
+            background: #d32f2f;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
 
-        /* Input Area */
-        .chat-input-area { padding: 10px; background: #f0f2f5; display: flex; gap: 5px; align-items: center; }
-        input[type="text"] { flex: 1; padding: 10px; border-radius: 20px; border: none; }
-        button { border: none; background: #008069; color: white; padding: 10px 15px; border-radius: 20px; cursor: pointer; }
+        /* 🟢 UNREAD COUNTER BADGE */
+        .unread-badge {
+            background-color: #25d366;
+            color: white;
+            font-size: 11px;
+            font-weight: bold;
+            min-width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 5px;
+        }
+
+        /* 💬 CHAT VIEW STYLING */
+        #chat-view { display: none; flex-direction: column; height: 100%; }
+        .chat-header { background: #004d40; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .back-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; }
+        .profile-img { width: 40px; height: 40px; border-radius: 50%; background: #ccc; object-fit: cover; }
+        .header-info { flex: 1; }
+        .header-info .name { font-size: 16px; font-weight: 600; }
+        .header-info .status { font-size: 12px; color: #b2dfdb; }
+        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-color: #efeae2; }
+        
+        /* Message Bubbles */
+        .msg { 
+            max-width: 80%; 
+            padding: 6px 7px 6px 9px; 
+            border-radius: 8px; 
+            font-size: 14.5px; 
+            line-height: 1.4; 
+            word-wrap: break-word; 
+            position: relative; 
+            box-shadow: 0 1px 1px rgba(0,0,0,0.13); 
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .msg.sent-by-me { background: #d9fdd3; align-self: flex-end; border-top-right-radius: 0; color: #111b21; }
+        .msg.received-by-me { background: #ffffff; align-self: flex-start; border-top-left-radius: 0; color: #111b21; }
+        .msg img, .msg video { max-width: 100%; max-height: 200px; border-radius: 6px; display: block; object-fit: contain; }
+        .msg audio { max-width: 100%; display: block; outline: none; }
+
+        .msg-meta { 
+            align-self: flex-end;
+            display: inline-flex; 
+            align-items: center; 
+            gap: 3px; 
+            font-size: 10px; 
+            color: #667781; 
+            user-select: none;
+        }
+        
+        .tick { display: inline-block; font-weight: bold; font-size: 12px; margin-left: 1px; }
+        .tick.sent { color: #8696a0; }
+        .tick.delivered { color: #8696a0; }
+        .tick.read { color: #53bdeb; }
+
+        /* ⌨️ INPUT AREA */
+        .chat-input-area { padding: 10px; background: #f0f2f5; display: flex; align-items: center; gap: 8px; }
+        .input-container { flex: 1; background: #fff; border-radius: 24px; display: flex; align-items: center; padding: 2px 12px; }
+        .input-container input[type="text"] { flex: 1; border: none; outline: none; padding: 10px 4px; font-size: 15px; background: transparent; }
+        .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #54656f; display: flex; align-items: center; justify-content: center; }
+        .icon-btn.recording { color: #ea0038; animation: blink 1s infinite; }
+        .send-btn { background: #005c4b; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
     </style>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
+            authDomain: "newpro-affc8.firebaseapp.com",
+            projectId: "newpro-affc8",
+            storageBucket: "newpro-affc8.firebasestorage.app",
+            messagingSenderId: "1080341611919",
+            appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+
+        // 🎵 WhatsApp Premium Incoming Alert Sound
+        const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
+
+        const inboxView = document.getElementById('inbox-view');
+        const chatView = document.getElementById('chat-view');
+        const userListDiv = document.getElementById('userList');
+        const chatTitle = document.getElementById('chatTitle');
+        const chatBox = document.getElementById('chatBox');
+        const msgInput = document.getElementById('msgInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const mediaInput = document.getElementById('mediaInput');
+        const voiceBtn = document.getElementById('voiceBtn');
+
+        let activeDocId = "";
+        let currentSender = "admin";
+        let activeChatListener = null;
+        let mediaRecorder, audioChunks = [], isRecording = false;
+
+        let isWindowActive = true;
+        window.addEventListener('focus', () => { isWindowActive = true; });
+        window.addEventListener('blur', () => { isWindowActive = false; });
+
+        function getUserFriendlyName(docId) {
+            let savedNames = localStorage.getItem('chatUserNames');
+            savedNames = savedNames ? JSON.parse(savedNames) : {};
+
+            if (savedNames[docId]) {
+                return savedNames[docId];
+            }
+
+            const assignedNumbers = Object.values(savedNames).map(name => {
+                const num = parseInt(name.replace("User ", ""));
+                return isNaN(num) ? 0 : num;
+            });
+            const nextNumber = assignedNumbers.length > 0 ? Math.max(...assignedNumbers) + 1 : 1;
+            const newName = "User " + nextNumber;
+
+            savedNames[docId] = newName;
+            localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
+            return newName;
+        }
+
+        // Live status updating to Firebase Firestore
+        async function updateCustomerStatus(docId, newStatus) {
+            try {
+                const docRef = doc(db, "group_messages", docId);
+                await updateDoc(docRef, { statusTag: newStatus });
+            } catch (error) {
+                console.error("Error updating status: ", error);
+            }
+        }
+
+        window.handleStatusChange = function(selectElement, docId) {
+            const val = selectElement.value;
+            if (val === 'custom') {
+                const customVal = prompt("Enter Custom Status (e.g., Plan 3, Free Trial, Paid):");
+                if (customVal && customVal.trim() !== "") {
+                    updateCustomerStatus(docId, customVal.trim());
+                } else {
+                    selectElement.value = "";
+                }
+            } else {
+                updateCustomerStatus(docId, val);
+            }
+        };
+
+        window.removeStatus = function(docId) {
+            if (confirm("Are you sure you want to remove the status?")) {
+                updateCustomerStatus(docId, "");
+            }
+        };
+
+        window.openChat = function(docId, userName) {
+            activeDocId = docId;
+            inboxView.style.display = 'none';
+            chatView.style.display = 'flex';
+            chatTitle.innerText = userName;
+            
+            const q = query(collection(db, "group_messages", activeDocId, "messages"), orderBy("time_now", "asc"));
+            activeChatListener = onSnapshot(q, (snapshot) => {
+                chatBox.innerHTML = ""; 
+                let hasNewIncomingMsg = false;
+
+                snapshot.forEach((snapshotDoc) => {
+                    const data = snapshotDoc.data();
+                    
+                    if (data.sender === 'user') {
+                        // 🔔 Ringtone play check for unread message
+                        if (data.status !== 'read') {
+                            hasNewIncomingMsg = true;
+                        }
+
+                        const docRef = doc(db, "group_messages", activeDocId, "messages", snapshotDoc.id);
+                        if (isWindowActive && data.status !== 'read') {
+                            updateDoc(docRef, { status: 'read' });
+                        } else if (!isWindowActive && (!data.status || data.status === 'sent')) {
+                            updateDoc(docRef, { status: 'delivered' });
+                        }
+                    }
+
+                    const timeLabel = data.time_label || getFormattedTime();
+                    const messageContent = data.file_url || data.content || data.message_text;
+                    renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
+                });
+
+                // Play notification alert
+                if (hasNewIncomingMsg) {
+                    msgSound.play().catch(e => {
+                        console.log("Audio autoplay blocked by browser. Click anywhere on page first.");
+                    });
+                }
+
+                chatBox.scrollTop = chatBox.scrollHeight; 
+            });
+        };
+
+        async function loadInbox() {
+            inboxView.style.display = 'flex';
+            chatView.style.display = 'none';
+            if (activeChatListener) {
+                activeChatListener(); 
+                activeChatListener = null;
+            }
+
+            userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #667781;'>Loading conversations...</div>";
+
+            try {
+                // Real-time update on Inbox users list
+                onSnapshot(collection(db, "group_messages"), (querySnapshot) => {
+                    userListDiv.innerHTML = "";
+
+                    if (querySnapshot.empty) {
+                        userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #667781;'>No active chats found.</div>";
+                        return;
+                    }
+
+                    querySnapshot.forEach((documentSnapshot) => {
+                        const docId = documentSnapshot.id;
+                        const docData = documentSnapshot.data();
+                        const userName = getUserFriendlyName(docId);
+                        const activeStatus = docData.statusTag || "";
+
+                        // Dynamic CSS styling classes for tags
+                        let tagClass = "status-tag";
+                        if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
+                        else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
+                        else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
+                        else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
+                        else if (activeStatus !== "") tagClass += " custom";
+
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'user-item';
+                        itemDiv.id = `inbox-item-${docId}`;
+                        
+                        // User info and tag controls structured separately to avoid click collision
+                        itemDiv.innerHTML = `
+                            <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
+                                <div class="user-avatar">👤</div>
+                                <div class="user-details">
+                                    <div class="user-phone">${userName}</div>
+                                    <div class="user-subtitle">ID: ${docId.substring(0, 15)}...</div>
+                                </div>
+                                <div id="badge-${docId}" class="unread-badge" style="display: none;">0</div>
+                            </div>
+                            <div class="status-container">
+                                ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px; color:#aaa;">No tag</span>'}
+                                <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
+                                    <option value="" disabled selected>Assign status...</option>
+                                    <option value="Payment Pending">Payment Pending</option>
+                                    <option value="Plan 1">Plan 1</option>
+                                    <option value="Plan 2">Plan 2</option>
+                                    <option value="Completed">Completed</option>
+                                    <option value="custom">✍️ Custom Status...</option>
+                                </select>
+                                ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
+                            </div>
+                        `;
+                        userListDiv.appendChild(itemDiv);
+
+                        const messagesRef = collection(db, "group_messages", docId, "messages");
+                        onSnapshot(messagesRef, (msgSnapshot) => {
+                            let unreadCount = 0;
+                            msgSnapshot.forEach((msgDoc) => {
+                                const msgData = msgDoc.data();
+                                if (msgData.sender === 'user' && msgData.status !== 'read') {
+                                    unreadCount++;
+                                }
+                            });
+
+                            const badge = document.getElementById(`badge-${docId}`);
+                            if (badge) {
+                                if (unreadCount > 0) {
+                                    badge.innerText = unreadCount;
+                                    badge.style.display = 'flex';
+                                } else {
+                                    badge.style.display = 'none';
+                                }
+                            }
+                        });
+                    });
+                });
+            } catch (error) {
+                console.error("Error loading inbox: ", error);
+                userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: red;'>Failed to load chats.</div>";
+            }
+        }
+
+        window.goBackToInbox = function() {
+            loadInbox();
+        };
+
+        function renderMessage(id, sender, type, content, timeStr, status) {
+            const msgDiv = document.createElement('div');
+            const isMe = sender === currentSender;
+            msgDiv.classList.add('msg', isMe ? 'sent-by-me' : 'received-by-me'); 
+
+            if (!content) return; 
+
+            if (type === 'text') {
+                const textNode = document.createElement('span');
+                textNode.innerText = content;
+                msgDiv.appendChild(textNode);
+            } else if (type === 'image') {
+                const img = document.createElement('img');
+                img.src = content;
+                img.alt = "Image";
+                img.onload = () => { chatBox.scrollTop = chatBox.scrollHeight; };
+                msgDiv.appendChild(img);
+            } else if (type === 'video') {
+                const video = document.createElement('video');
+                video.src = content;
+                video.controls = true;
+                msgDiv.appendChild(video);
+            } else if (type === 'audio') {
+                const audio = document.createElement('audio');
+                audio.src = content;
+                audio.controls = true;
+                audio.preload = "auto";
+                msgDiv.appendChild(audio);
+            }
+
+            let ticksHtml = '';
+            if (isMe) {
+                if (status === 'sent') ticksHtml = '<span class="tick sent">✓</span>';
+                else if (status === 'delivered') ticksHtml = '<span class="tick delivered">✓✓</span>';
+                else if (status === 'read') ticksHtml = '<span class="tick read">✓✓</span>';
+                else ticksHtml = '<span class="tick sent">✓</span>';
+            }
+
+            const metaDiv = document.createElement('div');
+            metaDiv.classList.add('msg-meta');
+            metaDiv.innerHTML = `<span>${timeStr || ''}</span> ${ticksHtml}`;
+            msgDiv.appendChild(metaDiv);
+
+            chatBox.appendChild(msgDiv);
+        }
+
+        function getFormattedTime() {
+            const now = new Date();
+            let hours = now.getHours(); let minutes = now.getMinutes();
+            const ampm = hours >= 12 ? 'PM' : 'AM';
+            hours = hours % 12; hours = hours ? hours : 12; 
+            minutes = minutes < 10 ? '0'+minutes : minutes;
+            return hours + ':' + minutes + ' ' + ampm;
+        }
+
+        async function sendMessageToFirebase(type, content) {
+            if (!activeDocId) return;
+            const timestamp = Date.now();
+            const messageData = {
+                sender: currentSender,
+                type: type,
+                time_now: timestamp,
+                time_label: getFormattedTime(),
+                status: "sent",
+                file_url: type !== 'text' ? content : "",
+                message_text: type === 'text' ? content : `Sent a ${type}`
+            };
+
+            await addDoc(collection(db, "group_messages", activeDocId, "messages"), messageData);
+        }
+
+        sendBtn.addEventListener('click', () => { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } });
+        msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } } });
+
+        const toBase64 = file => new Promise((resolve, reject) => {
+            const reader = new FileReader(); reader.readAsDataURL(file);
+            reader.onload = () => resolve(reader.result); reader.onerror = error => reject(error);
+        });
+
+        mediaInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0]; if (!file) return;
+            if (file.size > 1548576) { alert("File size limit is 1.5MB."); return; }
+            let fileType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'text';
+            const base64 = await toBase64(file);
+            sendMessageToFirebase(fileType, base64);
+        });
+
+        voiceBtn.addEventListener('click', async () => {
+            if (!isRecording) {
+                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream); audioChunks = [];
+                    mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+                    mediaRecorder.onstop = async () => {
+                        const blob = new Blob(audioChunks, { type: 'audio/mp3' });
+                        const base64 = await toBase64(blob);
+                        sendMessageToFirebase('audio', base64);
+                    };
+                    mediaRecorder.start(); isRecording = true; voiceBtn.classList.add('recording'); voiceBtn.innerText = "🛑";
+                }
+            } else { mediaRecorder.stop(); isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.innerText = "🎙️"; }
+        });
+
+        loadInbox();
+    </script>
 </head>
 <body>
-
 <div class="chat-container">
     <div id="inbox-view">
-        <div style="background:#008069; color:white; padding:15px; font-weight:bold;">Conversations</div>
-        <div id="userList"></div>
+        <div class="inbox-header">
+            <span>Conversations</span>
+        </div>
+        <div class="user-list" id="userList"></div>
     </div>
 
-    <div id="chat-view" style="display:none; flex-direction:column; height:100%;">
-        <div style="background:#004d40; color:white; padding:15px;"><button onclick="location.reload()">Back</button></div>
-        <div id="chatBox" class="chat-messages"></div>
+    <div id="chat-view">
+        <div class="chat-header">
+            <button class="back-btn" onclick="goBackToInbox()">←</button>
+            <img class="profile-img" src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="Profile">
+            <div class="header-info">
+                <div class="name" id="chatTitle">Support Panel</div>
+                <div class="status">active chat session</div>
+            </div>
+        </div>
+        <div class="chat-messages" id="chatBox"></div>
         <div class="chat-input-area">
-            <input type="file" id="fileInput" hidden>
-            <button onclick="document.getElementById('fileInput').click()">📎</button>
-            <input type="text" id="msgInput" placeholder="Type a message...">
-            <button onclick="sendText()">Send</button>
+            <div class="input-container">
+                <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
+                <button class="icon-btn" onclick="document.getElementById('mediaInput').click()" style="margin-right: 8px;">📎</button>
+                <input type="text" id="msgInput" placeholder="Reply to customer...">
+                <button class="icon-btn" id="voiceBtn">🎙️</button>
+            </div>
+            <button class="send-btn" id="sendBtn">➤</button>
         </div>
     </div>
 </div>
-
-<script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-    import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, doc, updateDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
-    import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js";
-
-    const firebaseConfig = {
-        apiKey: "AIzaSyDbjIDUk4bnJuVfSQZua61dyiDsjjC6uiU",
-        authDomain: "newpro-affc8.firebaseapp.com",
-        projectId: "newpro-affc8",
-        storageBucket: "newpro-affc8.firebasestorage.app",
-        messagingSenderId: "1080341611919",
-        appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
-    };
-
-    const app = initializeApp(firebaseConfig);
-    const db = getFirestore(app);
-    const storage = getStorage(app);
-
-    let activeDocId = "";
-
-    // Load Inbox Sorted by lastUpdated
-    onSnapshot(query(collection(db, "group_messages"), orderBy("lastUpdated", "desc")), (snap) => {
-        const list = document.getElementById('userList');
-        list.innerHTML = "";
-        snap.forEach(d => {
-            const div = document.createElement('div');
-            div.className = "user-item";
-            div.innerHTML = `<div>User ${d.id.substring(0,6)}</div> <div class="new-badge" id="badge-${d.id}">New</div>`;
-            div.onclick = () => openChat(d.id);
-            list.appendChild(div);
-        });
-    });
-
-    window.openChat = (id) => {
-        activeDocId = id;
-        document.getElementById('inbox-view').style.display = 'none';
-        document.getElementById('chat-view').style.display = 'flex';
-        onSnapshot(query(collection(db, "group_messages", id, "messages"), orderBy("time_now", "asc")), (snap) => {
-            const box = document.getElementById('chatBox');
-            box.innerHTML = "";
-            snap.forEach(d => {
-                const msg = d.data();
-                const div = document.createElement('div');
-                div.className = `msg ${msg.sender === 'admin' ? 'sent' : 'received'}`;
-                if(msg.type === 'text') div.innerText = msg.message_text;
-                else if(msg.type === 'image') div.innerHTML = `<img src="${msg.file_url}">`;
-                else if(msg.type === 'video') div.innerHTML = `<video src="${msg.file_url}" controls></video>`;
-                else if(msg.type === 'audio') div.innerHTML = `<audio src="${msg.file_url}" controls></audio>`;
-                box.appendChild(div);
-            });
-            box.scrollTop = box.scrollHeight;
-        });
-    };
-
-    window.sendText = async () => {
-        const text = document.getElementById('msgInput').value;
-        if(!text) return;
-        await addDoc(collection(db, "group_messages", activeDocId, "messages"), {
-            sender: 'admin', type: 'text', message_text: text, time_now: Date.now()
-        });
-        await updateDoc(doc(db, "group_messages", activeDocId), { lastUpdated: Date.now() });
-        document.getElementById('msgInput').value = "";
-    };
-
-    // File Upload Handler
-    document.getElementById('fileInput').onchange = async (e) => {
-        const file = e.target.files[0];
-        const storageRef = ref(storage, 'uploads/' + Date.now() + file.name);
-        await uploadBytes(storageRef, file);
-        const url = await getDownloadURL(storageRef);
-        let type = 'image';
-        if(file.type.includes('video')) type = 'video';
-        if(file.type.includes('audio')) type = 'audio';
-        
-        await addDoc(collection(db, "group_messages", activeDocId, "messages"), {
-            sender: 'admin', type: type, file_url: url, time_now: Date.now()
-        });
-        await updateDoc(doc(db, "group_messages", activeDocId), { lastUpdated: Date.now() });
-    };
-</script>
-
 </body>
 </html>
