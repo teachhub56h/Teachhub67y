@@ -1,0 +1,19 @@
+{
+  "name": "Teach Hub Support",
+  "short_name": "Teach Hub",
+  "description": "Chat directly with Teach Hub school staff support",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef2f5",
+  "theme_color": "#1B4F72",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
