@@ -5,8 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Teach Hub - Staff Support</title>
     <link rel="manifest" href="manifest.json">
-    <link rel="icon" href="logo.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="logo.svg">
+    <link rel="icon" href="logo-192.png" type="image/png">
+    <link rel="apple-touch-icon" href="logo-192.png">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Teach Hub">
@@ -255,48 +255,47 @@
         navigator.serviceWorker.register('sw.js');
       }
 
-      // Transparent install: button is always visible. If Chrome's automatic
-      // install prompt is ready, tapping the button triggers it directly.
-      // If not (Chrome hasn't met its own engagement heuristic yet, or the
-      // browser is Safari/other), tapping it shows clear manual instructions
-      // instead of doing nothing.
-      let deferredPrompt;
-      const installBtn = document.getElementById('installBtn');
-      const helpOverlay = document.getElementById('installHelpOverlay');
-      const helpCloseBtn = document.getElementById('installHelpClose');
+      // Wait until the full page (including the button below) has loaded
+      // before attaching any install-button logic.
+      document.addEventListener('DOMContentLoaded', () => {
+        let deferredPrompt;
+        const installBtn = document.getElementById('installBtn');
+        const helpOverlay = document.getElementById('installHelpOverlay');
+        const helpCloseBtn = document.getElementById('installHelpClose');
 
-      window.addEventListener('beforeinstallprompt', (e) => {
-        e.preventDefault();
-        deferredPrompt = e;
-      });
-
-      if (installBtn) {
-        installBtn.addEventListener('click', async () => {
-          if (deferredPrompt) {
-            deferredPrompt.prompt();
-            await deferredPrompt.userChoice;
-            deferredPrompt = null;
-          } else if (helpOverlay) {
-            helpOverlay.style.display = 'flex';
-          }
+        window.addEventListener('beforeinstallprompt', (e) => {
+          e.preventDefault();
+          deferredPrompt = e;
         });
-      }
 
-      if (helpCloseBtn) {
-        helpCloseBtn.addEventListener('click', () => {
-          helpOverlay.style.display = 'none';
+        if (installBtn) {
+          installBtn.addEventListener('click', async () => {
+            if (deferredPrompt) {
+              deferredPrompt.prompt();
+              await deferredPrompt.userChoice;
+              deferredPrompt = null;
+            } else if (helpOverlay) {
+              helpOverlay.style.display = 'flex';
+            }
+          });
+        }
+
+        if (helpCloseBtn) {
+          helpCloseBtn.addEventListener('click', () => {
+            helpOverlay.style.display = 'none';
+          });
+        }
+
+        window.addEventListener('appinstalled', () => {
+          if (installBtn) installBtn.style.display = 'none';
         });
-      }
-
-      window.addEventListener('appinstalled', () => {
-        if (installBtn) installBtn.style.display = 'none';
       });
     </script>
 </head>
 <body>
 <div class="chat-container">
     <div class="chat-header">
-        <img class="profile-img" src="logo.svg" alt="Teach Hub">
+        <img class="profile-img" src="logo-192.png" alt="Teach Hub">
         <div class="header-info">
             <div class="name">Teach Hub Support</div>
             <div class="status">Staff support · Online</div>
