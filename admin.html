@@ -3,7 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>WhatsApp Admin Panel</title>
+    <title>WhatsApp Customer Support</title>
+    <link rel="manifest" href="manifest.json">
+    
+    <!-- Added Tags -->
+    <link rel="apple-touch-icon" href="https://i.postimg.cc/rpqRNgF7/IMG-20260717-112618.png">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Customer Support">
+
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         body { 
@@ -13,92 +21,14 @@
         }
         .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #efeae2; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
         
-        /* 📱 INBOX VIEW STYLING */
-        #inbox-view { display: flex; flex-direction: column; height: 100%; background: #ffffff; }
-        .inbox-header { background: #008069; color: white; padding: 16px; font-size: 18px; font-weight: 600; display: flex; align-items: center; justify-content: space-between; }
-        .user-list { flex: 1; overflow-y: auto; padding: 8px 0; background: #ffffff; }
-        
-        .user-item { 
-            display: flex; flex-direction: column; padding: 12px 16px; 
-            border-bottom: 1px solid #f0f0f0; transition: background 0.2s; 
-        }
-        .user-item:hover { background: #f5f6f6; }
-        
-        .user-clickable-area {
-            display: flex; align-items: center; gap: 15px; width: 100%; cursor: pointer;
-        }
-        
-        .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #00a884; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; }
-        .user-details { flex: 1; }
-        .user-phone { font-size: 15px; font-weight: 600; color: #111b21; }
-        .user-subtitle { font-size: 12px; color: #667781; margin-top: 2px; }
-        
-        /* 🏷️ STATUS MANAGER & TAGS STYLING */
-        .status-container {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px dashed #e1e1e1;
-            flex-wrap: wrap;
-        }
-        .status-tag {
-            font-size: 11px;
-            font-weight: 600;
-            padding: 3px 8px;
-            border-radius: 12px;
-            color: white;
-            background-color: #8696a0;
-        }
-        .status-tag.pending { background-color: #e53935; } 
-        .status-tag.plan1 { background-color: #1e88e5; }   
-        .status-tag.plan2 { background-color: #8e24aa; }   
-        .status-tag.completed { background-color: #43a047; } 
-        .status-tag.custom { background-color: #f4511e; }   
-
-        .status-selector {
-            font-size: 12px;
-            padding: 3px 6px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-            outline: none;
-            background: #fff;
-            cursor: pointer;
-        }
-        .remove-status-btn {
-            font-size: 11px;
-            padding: 3px 6px;
-            background: #d32f2f;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        /* 🟢 UNREAD COUNTER BADGE */
-        .unread-badge {
-            background-color: #25d366;
-            color: white;
-            font-size: 11px;
-            font-weight: bold;
-            min-width: 20px;
-            height: 20px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 5px;
-        }
-
-        /* 💬 CHAT VIEW STYLING */
-        #chat-view { display: none; flex-direction: column; height: 100%; }
-        .chat-header { background: #004d40; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .back-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; }
+        /* 💬 CHAT HEADER STYLING */
+        .chat-header { background: #008069; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .profile-img { width: 40px; height: 40px; border-radius: 50%; background: #ccc; object-fit: cover; }
         .header-info { flex: 1; }
         .header-info .name { font-size: 16px; font-weight: 600; }
         .header-info .status { font-size: 12px; color: #b2dfdb; }
+        
+        /* 📜 CHAT MESSAGES AREA */
         .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-color: #efeae2; }
         
         /* Message Bubbles */
@@ -150,7 +80,7 @@
         import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
         const firebaseConfig = {
-            apiKey: "AIzaSyDbjIDUk4bnJuVfSQZua61dyiDsjjC6uiU", 
+            apiKey: "AIzaSyDbjIDUk4bnJuVfSQZua61dyiDsjjC6uiU",
             authDomain: "newpro-affc8.firebaseapp.com",
             projectId: "newpro-affc8",
             storageBucket: "newpro-affc8.firebasestorage.app",
@@ -161,96 +91,34 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
-
-        const inboxView = document.getElementById('inbox-view');
-        const chatView = document.getElementById('chat-view');
-        const userListDiv = document.getElementById('userList');
-        const chatTitle = document.getElementById('chatTitle');
         const chatBox = document.getElementById('chatBox');
         const msgInput = document.getElementById('msgInput');
         const sendBtn = document.getElementById('sendBtn');
         const mediaInput = document.getElementById('mediaInput');
         const voiceBtn = document.getElementById('voiceBtn');
 
-        let activeDocId = "";
-        let currentSender = "admin";
-        let activeChatListener = null;
+        let currentSender = "user";
         let mediaRecorder, audioChunks = [], isRecording = false;
+
+        let myChatDocId = localStorage.getItem('my_chat_session_id');
+        if (!myChatDocId) {
+            myChatDocId = "user_" + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
+            localStorage.setItem('my_chat_session_id', myChatDocId);
+        }
 
         let isWindowActive = true;
         window.addEventListener('focus', () => { isWindowActive = true; });
         window.addEventListener('blur', () => { isWindowActive = false; });
 
-        function getUserFriendlyName(docId) {
-            let savedNames = localStorage.getItem('chatUserNames');
-            savedNames = savedNames ? JSON.parse(savedNames) : {};
-
-            if (savedNames[docId]) {
-                return savedNames[docId];
-            }
-
-            const assignedNumbers = Object.values(savedNames).map(name => {
-                const num = parseInt(name.replace("User ", ""));
-                return isNaN(num) ? 0 : num;
-            });
-            const nextNumber = assignedNumbers.length > 0 ? Math.max(...assignedNumbers) + 1 : 1;
-            const newName = "User " + nextNumber;
-
-            savedNames[docId] = newName;
-            localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
-            return newName;
-        }
-
-        async function updateCustomerStatus(docId, newStatus) {
-            try {
-                const docRef = doc(db, "group_messages", docId);
-                await updateDoc(docRef, { statusTag: newStatus });
-            } catch (error) {
-                console.error("Error updating status: ", error);
-            }
-        }
-
-        window.handleStatusChange = function(selectElement, docId) {
-            const val = selectElement.value;
-            if (val === 'custom') {
-                const customVal = prompt("Enter Custom Status (e.g., Plan 3, Free Trial, Paid):");
-                if (customVal && customVal.trim() !== "") {
-                    updateCustomerStatus(docId, customVal.trim());
-                } else {
-                    selectElement.value = "";
-                }
-            } else {
-                updateCustomerStatus(docId, val);
-            }
-        };
-
-        window.removeStatus = function(docId) {
-            if (confirm("Are you sure you want to remove the status?")) {
-                updateCustomerStatus(docId, "");
-            }
-        };
-
-        window.openChat = function(docId, userName) {
-            activeDocId = docId;
-            inboxView.style.display = 'none';
-            chatView.style.display = 'flex';
-            chatTitle.innerText = userName;
-            
-            const q = query(collection(db, "group_messages", activeDocId, "messages"), orderBy("time_now", "asc"));
-            activeChatListener = onSnapshot(q, (snapshot) => {
-                chatBox.innerHTML = ""; 
-                let hasNewIncomingMsg = false;
-
+        function loadChatSession() {
+            const q = query(collection(db, "group_messages", myChatDocId, "messages"), orderBy("time_now", "asc"));
+            onSnapshot(q, (snapshot) => {
+                chatBox.innerHTML = "";
                 snapshot.forEach((snapshotDoc) => {
                     const data = snapshotDoc.data();
                     
-                    if (data.sender === 'user') {
-                        if (data.status !== 'read') {
-                            hasNewIncomingMsg = true;
-                        }
-
-                        const docRef = doc(db, "group_messages", activeDocId, "messages", snapshotDoc.id);
+                    if (data.sender === 'admin') {
+                        const docRef = doc(db, "group_messages", myChatDocId, "messages", snapshotDoc.id);
                         if (isWindowActive && data.status !== 'read') {
                             updateDoc(docRef, { status: 'read' });
                         } else if (!isWindowActive && (!data.status || data.status === 'sent')) {
@@ -262,115 +130,16 @@
                     const messageContent = data.file_url || data.content || data.message_text;
                     renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
                 });
-
-                if (hasNewIncomingMsg) {
-                    msgSound.play().catch(e => {
-                        console.log("Audio autoplay blocked by browser.");
-                    });
-                }
-
-                chatBox.scrollTop = chatBox.scrollHeight; 
+                chatBox.scrollTop = chatBox.scrollHeight;
             });
-        };
-
-        async function loadInbox() {
-            inboxView.style.display = 'flex';
-            chatView.style.display = 'none';
-            if (activeChatListener) {
-                activeChatListener(); 
-                activeChatListener = null;
-            }
-
-            userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #667781;'>Loading conversations...</div>";
-
-            try {
-                onSnapshot(collection(db, "group_messages"), (querySnapshot) => {
-                    userListDiv.innerHTML = "";
-
-                    if (querySnapshot.empty) {
-                        userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #667781;'>No active chats found.</div>";
-                        return;
-                    }
-
-                    querySnapshot.forEach((documentSnapshot) => {
-                        const docId = documentSnapshot.id;
-                        const docData = documentSnapshot.data();
-                        const userName = getUserFriendlyName(docId);
-                        const activeStatus = docData.statusTag || "";
-
-                        let tagClass = "status-tag";
-                        if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
-                        else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
-                        else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
-                        else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
-                        else if (activeStatus !== "") tagClass += " custom";
-
-                        const itemDiv = document.createElement('div');
-                        itemDiv.className = 'user-item';
-                        itemDiv.id = `inbox-item-${docId}`;
-                        
-                        itemDiv.innerHTML = `
-                            <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
-                                <div class="user-avatar">👤</div>
-                                <div class="user-details">
-                                    <div class="user-phone">${userName}</div>
-                                    <div class="user-subtitle">ID: ${docId.substring(0, 15)}...</div>
-                                </div>
-                                <div id="badge-${docId}" class="unread-badge" style="display: none;">0</div>
-                            </div>
-                            <div class="status-container">
-                                ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px; color:#aaa;">No tag</span>'}
-                                <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
-                                    <option value="" disabled selected>Assign status...</option>
-                                    <option value="Payment Pending">Payment Pending</option>
-                                    <option value="Plan 1">Plan 1</option>
-                                    <option value="Plan 2">Plan 2</option>
-                                    <option value="Completed">Completed</option>
-                                    <option value="custom">✍️ Custom Status...</option>
-                                </select>
-                                ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
-                            </div>
-                        `;
-                        userListDiv.appendChild(itemDiv);
-
-                        const messagesRef = collection(db, "group_messages", docId, "messages");
-                        onSnapshot(messagesRef, (msgSnapshot) => {
-                            let unreadCount = 0;
-                            msgSnapshot.forEach((msgDoc) => {
-                                const msgData = msgDoc.data();
-                                if (msgData.sender === 'user' && msgData.status !== 'read') {
-                                    unreadCount++;
-                                }
-                            });
-
-                            const badge = document.getElementById(`badge-${docId}`);
-                            if (badge) {
-                                if (unreadCount > 0) {
-                                    badge.innerText = unreadCount;
-                                    badge.style.display = 'flex';
-                                } else {
-                                    badge.style.display = 'none';
-                                }
-                            }
-                        });
-                    });
-                });
-            } catch (error) {
-                console.error("Error loading inbox: ", error);
-                userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: red;'>Failed to load chats.</div>";
-            }
         }
-
-        window.goBackToInbox = function() {
-            loadInbox();
-        };
 
         function renderMessage(id, sender, type, content, timeStr, status) {
             const msgDiv = document.createElement('div');
             const isMe = sender === currentSender;
-            msgDiv.classList.add('msg', isMe ? 'sent-by-me' : 'received-by-me'); 
+            msgDiv.classList.add('msg', isMe ? 'sent-by-me' : 'received-by-me');
 
-            if (!content) return; 
+            if (!content) return;
 
             if (type === 'text') {
                 const textNode = document.createElement('span');
@@ -421,8 +190,14 @@
         }
 
         async function sendMessageToFirebase(type, content) {
-            if (!activeDocId) return;
             const timestamp = Date.now();
+            const userRootRef = doc(db, "group_messages", myChatDocId);
+            
+            // Set session info if new
+            import("https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js").then(async ({ setDoc }) => {
+                await setDoc(userRootRef, { sessionCreatedAt: timestamp, statusTag: "" }, { merge: true });
+            });
+
             const messageData = {
                 sender: currentSender,
                 type: type,
@@ -433,7 +208,7 @@
                 message_text: type === 'text' ? content : `Sent a ${type}`
             };
 
-            await addDoc(collection(db, "group_messages", activeDocId, "messages"), messageData);
+            await addDoc(collection(db, "group_messages", myChatDocId, "messages"), messageData);
         }
 
         sendBtn.addEventListener('click', () => { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } });
@@ -468,37 +243,29 @@
             } else { mediaRecorder.stop(); isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.innerText = "🎙️"; }
         });
 
-        loadInbox();
+        loadChatSession();
     </script>
 </head>
 <body>
 <div class="chat-container">
-    <div id="inbox-view">
-        <div class="inbox-header">
-            <span>Conversations</span>
+    <div class="chat-header">
+        <img class="profile-img" src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="Support Avatar">
+        <div class="header-info">
+            <div class="name">Customer Support</div>
+            <div class="status">Online</div>
         </div>
-        <div class="user-list" id="userList"></div>
     </div>
-
-    <div id="chat-view">
-        <div class="chat-header">
-            <button class="back-btn" onclick="goBackToInbox()">←</button>
-            <img class="profile-img" src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="Profile">
-            <div class="header-info">
-                <div class="name" id="chatTitle">Support Panel</div>
-                <div class="status">active chat session</div>
-            </div>
+    
+    <div class="chat-messages" id="chatBox"></div>
+    
+    <div class="chat-input-area">
+        <div class="input-container">
+            <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
+            <button class="icon-btn" onclick="document.getElementById('mediaInput').click()" style="margin-right: 8px;">📎</button>
+            <input type="text" id="msgInput" placeholder="Type a message...">
+            <button class="icon-btn" id="voiceBtn">🎙️</button>
         </div>
-        <div class="chat-messages" id="chatBox"></div>
-        <div class="chat-input-area">
-            <div class="input-container">
-                <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
-                <button class="icon-btn" onclick="document.getElementById('mediaInput').click()" style="margin-right: 8px;">📎</button>
-                <input type="text" id="msgInput" placeholder="Reply to customer...">
-                <button class="icon-btn" id="voiceBtn">🎙️</button>
-            </div>
-            <button class="send-btn" id="sendBtn">➤</button>
-        </div>
+        <button class="send-btn" id="sendBtn">➤</button>
     </div>
 </div>
 </body>
