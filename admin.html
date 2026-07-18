@@ -2,296 +2,92 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>WhatsApp Customer Support</title>
-    <link rel="manifest" href="manifest.json">
     
-    <!-- Added Tags -->
-    <link rel="apple-touch-icon" href="https://i.postimg.cc/rpqRNgF7/IMG-20260717-112618.png">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Customer Support">
-
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: sans-serif; }
+        html, body { height: 100%; overflow: hidden; }
+        
         body { 
-            background: #dadbd3; 
-            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); 
-            display: flex; justify-content: center; align-items: center; height: 100vh; 
+            background: #efeae2; 
+            display: flex; justify-content: center; align-items: center; 
         }
-        .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #efeae2; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
-        
-        /* 💬 CHAT HEADER STYLING */
-        .chat-header { background: #008069; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .profile-img { width: 40px; height: 40px; border-radius: 50%; background: #ccc; object-fit: cover; }
-        .header-info { flex: 1; }
-        .header-info .name { font-size: 16px; font-weight: 600; }
-        .header-info .status { font-size: 12px; color: #b2dfdb; }
-        
-        /* 📜 CHAT MESSAGES AREA */
-        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png'); background-color: #efeae2; }
-        
-        /* Message Bubbles */
-        .msg { 
-            max-width: 80%; 
-            padding: 6px 7px 6px 9px; 
-            border-radius: 8px; 
-            font-size: 14.5px; 
-            line-height: 1.4; 
-            word-wrap: break-word; 
-            position: relative; 
-            box-shadow: 0 1px 1px rgba(0,0,0,0.13); 
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-        .msg.sent-by-me { background: #d9fdd3; align-self: flex-end; border-top-right-radius: 0; color: #111b21; }
-        .msg.received-by-me { background: #ffffff; align-self: flex-start; border-top-left-radius: 0; color: #111b21; }
-        .msg img, .msg video { max-width: 100%; max-height: 200px; border-radius: 6px; display: block; object-fit: contain; }
-        .msg audio { max-width: 100%; display: block; outline: none; }
 
-        .msg-meta { 
-            align-self: flex-end;
-            display: inline-flex; 
-            align-items: center; 
-            gap: 3px; 
-            font-size: 10px; 
-            color: #667781; 
-            user-select: none;
+        .chat-container { 
+            width: 100%; height: 100%; background: #efeae2; 
+            display: flex; flex-direction: column; 
+            position: relative;
         }
         
-        .tick { display: inline-block; font-weight: bold; font-size: 12px; margin-left: 1px; }
-        .tick.sent { color: #8696a0; }
-        .tick.delivered { color: #8696a0; }
-        .tick.read { color: #53bdeb; }
+        /* Header Fix */
+        .chat-header { 
+            background: #008069; color: white; padding: 10px 15px; 
+            display: flex; align-items: center; gap: 12px; flex-shrink: 0;
+        }
+        .profile-img { width: 40px; height: 40px; border-radius: 50%; background: #ccc; }
+        
+        /* Chat Messages Area - Yeh scrolling handle karega */
+        .chat-messages { 
+            flex: 1; overflow-y: auto; padding: 15px; 
+            display: flex; flex-direction: column; gap: 8px;
+            background-image: url('https://user-images.githubusercontent.com/15075759/28719144-86dc0f70-73b1-11e7-911d-60d70fcded21.png');
+        }
 
-        /* ⌨️ INPUT AREA */
-        .chat-input-area { padding: 10px; background: #f0f2f5; display: flex; align-items: center; gap: 8px; }
-        .input-container { flex: 1; background: #fff; border-radius: 24px; display: flex; align-items: center; padding: 2px 12px; }
-        .input-container input[type="text"] { flex: 1; border: none; outline: none; padding: 10px 4px; font-size: 15px; background: transparent; }
-        .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #54656f; display: flex; align-items: center; justify-content: center; }
-        .icon-btn.recording { color: #ea0038; animation: blink 1s infinite; }
-        .send-btn { background: #005c4b; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+        /* Input Area - Yeh bottom par fix rahega */
+        .chat-input-area { 
+            padding: 8px; background: #f0f2f5; flex-shrink: 0;
+            display: flex; align-items: center; gap: 8px;
+            padding-bottom: constant(safe-area-inset-bottom); /* iPhone notch support */
+            padding-bottom: env(safe-area-inset-bottom);
+        }
+        
+        .input-container { 
+            flex: 1; background: #fff; border-radius: 24px; display: flex; align-items: center; padding: 5px 10px;
+        }
+        .input-container input { flex: 1; border: none; outline: none; padding: 10px; font-size: 16px; }
+        
+        .send-btn { 
+            background: #005c4b; color: white; border: none; width: 45px; height: 45px; 
+            border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+        }
+
+        /* Messages */
+        .msg { max-width: 80%; padding: 8px 12px; border-radius: 8px; font-size: 15px; }
+        .sent-by-me { background: #d9fdd3; align-self: flex-end; }
+        .received-by-me { background: #ffffff; align-self: flex-start; }
     </style>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
-            authDomain: "newpro-affc8.firebaseapp.com",
-            projectId: "newpro-affc8",
-            storageBucket: "newpro-affc8.firebasestorage.app",
-            messagingSenderId: "1080341611919",
-            appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        const chatBox = document.getElementById('chatBox');
-        const msgInput = document.getElementById('msgInput');
-        const sendBtn = document.getElementById('sendBtn');
-        const mediaInput = document.getElementById('mediaInput');
-        const voiceBtn = document.getElementById('voiceBtn');
-
-        let currentSender = "user";
-        let mediaRecorder, audioChunks = [], isRecording = false;
-
-        let myChatDocId = localStorage.getItem('my_chat_session_id');
-        if (!myChatDocId) {
-            myChatDocId = "user_" + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
-            localStorage.setItem('my_chat_session_id', myChatDocId);
-        }
-
-        let isWindowActive = true;
-        window.addEventListener('focus', () => { isWindowActive = true; });
-        window.addEventListener('blur', () => { isWindowActive = false; });
-
-        function loadChatSession() {
-            const q = query(collection(db, "group_messages", myChatDocId, "messages"), orderBy("time_now", "asc"));
-            onSnapshot(q, (snapshot) => {
-                chatBox.innerHTML = "";
-                snapshot.forEach((snapshotDoc) => {
-                    const data = snapshotDoc.data();
-                    
-                    if (data.sender === 'admin') {
-                        const docRef = doc(db, "group_messages", myChatDocId, "messages", snapshotDoc.id);
-                        if (isWindowActive && data.status !== 'read') {
-                            updateDoc(docRef, { status: 'read' });
-                        } else if (!isWindowActive && (!data.status || data.status === 'sent')) {
-                            updateDoc(docRef, { status: 'delivered' });
-                        }
-                    }
-
-                    const timeLabel = data.time_label || getFormattedTime();
-                    const messageContent = data.file_url || data.content || data.message_text;
-                    renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
-                });
-                chatBox.scrollTop = chatBox.scrollHeight;
-            });
-        }
-
-        function renderMessage(id, sender, type, content, timeStr, status) {
-            const msgDiv = document.createElement('div');
-            const isMe = sender === currentSender;
-            msgDiv.classList.add('msg', isMe ? 'sent-by-me' : 'received-by-me');
-
-            if (!content) return;
-
-            if (type === 'text') {
-                const textNode = document.createElement('span');
-                textNode.innerText = content;
-                msgDiv.appendChild(textNode);
-            } else if (type === 'image') {
-                const img = document.createElement('img');
-                img.src = content;
-                img.alt = "Image";
-                img.onload = () => { chatBox.scrollTop = chatBox.scrollHeight; };
-                msgDiv.appendChild(img);
-            } else if (type === 'video') {
-                const video = document.createElement('video');
-                video.src = content;
-                video.controls = true;
-                msgDiv.appendChild(video);
-            } else if (type === 'audio') {
-                const audio = document.createElement('audio');
-                audio.src = content;
-                audio.controls = true;
-                audio.preload = "auto";
-                msgDiv.appendChild(audio);
-            }
-
-            let ticksHtml = '';
-            if (isMe) {
-                if (status === 'sent') ticksHtml = '<span class="tick sent">✓</span>';
-                else if (status === 'delivered') ticksHtml = '<span class="tick delivered">✓✓</span>';
-                else if (status === 'read') ticksHtml = '<span class="tick read">✓✓</span>';
-                else ticksHtml = '<span class="tick sent">✓</span>';
-            }
-
-            const metaDiv = document.createElement('div');
-            metaDiv.classList.add('msg-meta');
-            metaDiv.innerHTML = `<span>${timeStr || ''}</span> ${ticksHtml}`;
-            msgDiv.appendChild(metaDiv);
-
-            chatBox.appendChild(msgDiv);
-        }
-
-        function getFormattedTime() {
-            const now = new Date();
-            let hours = now.getHours(); let minutes = now.getMinutes();
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            hours = hours % 12; hours = hours ? hours : 12; 
-            minutes = minutes < 10 ? '0'+minutes : minutes;
-            return hours + ':' + minutes + ' ' + ampm;
-        }
-
-        async function sendMessageToFirebase(type, content) {
-            const timestamp = Date.now();
-            const userRootRef = doc(db, "group_messages", myChatDocId);
-            await updateDoc(userRootRef, { lastUpdated: timestamp }).catch(async () => {
-                import("https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js").then(async ({ setDoc }) => {
-                    await setDoc(userRootRef, { sessionCreatedAt: timestamp, statusTag: "" }, { merge: true });
-                });
-            });
-
-            const messageData = {
-                sender: currentSender,
-                type: type,
-                time_now: timestamp,
-                time_label: getFormattedTime(),
-                status: "sent",
-                file_url: type !== 'text' ? content : "",
-                message_text: type === 'text' ? content : `Sent a ${type}`
-            };
-
-            await addDoc(collection(db, "group_messages", myChatDocId, "messages"), messageData);
-        }
-
-        sendBtn.addEventListener('click', () => { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } });
-        msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } } });
-
-        const toBase64 = file => new Promise((resolve, reject) => {
-            const reader = new FileReader(); reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result); reader.onerror = error => reject(error);
-        });
-
-        mediaInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0]; if (!file) return;
-            if (file.size > 1548576) { alert("File size limit is 1.5MB."); return; }
-            let fileType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'text';
-            const base64 = await toBase64(file);
-            sendMessageToFirebase(fileType, base64);
-        });
-
-        voiceBtn.addEventListener('click', async () => {
-            if (!isRecording) {
-                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(stream); audioChunks = [];
-                    mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-                    mediaRecorder.onstop = async () => {
-                        const blob = new Blob(audioChunks, { type: 'audio/mp3' });
-                        const base64 = await toBase64(blob);
-                        sendMessageToFirebase('audio', base64);
-                    };
-                    mediaRecorder.start(); isRecording = true; voiceBtn.classList.add('recording'); voiceBtn.innerText = "🛑";
-                }
-            } else { mediaRecorder.stop(); isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.innerText = "🎙️"; }
-        });
-
-        loadChatSession();
-    </script>
-
-    <script>
-      // Service Worker registration
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js');
-      }
-
-      let deferredPrompt;
-      window.addEventListener('beforeinstallprompt', (e) => {
-        // Browser ka default prompt roko
-        e.preventDefault();
-        // Prompt ko save karo
-        deferredPrompt = e;
-      });
-
-      // User ko tab prompt dikhao jab wo screen par kahein bhi click kare
-      window.addEventListener('click', () => {
-        if (deferredPrompt) {
-          deferredPrompt.prompt();
-          deferredPrompt.userChoice.then((choiceResult) => {
-            deferredPrompt = null;
-          });
-        }
-      }, { once: true });
-    </script>
 </head>
 <body>
+
 <div class="chat-container">
     <div class="chat-header">
-        <img class="profile-img" src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg" alt="Support Avatar">
+        <img class="profile-img" src="https://upload.wikimedia.org/wikipedia/commons/6/6b/WhatsApp.svg">
         <div class="header-info">
             <div class="name">Customer Support</div>
             <div class="status">Online</div>
         </div>
     </div>
     
-    <div class="chat-messages" id="chatBox"></div>
+    <div class="chat-messages" id="chatBox">
+        <!-- Messages yahan aayenge -->
+    </div>
     
     <div class="chat-input-area">
         <div class="input-container">
-            <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
-            <button class="icon-btn" onclick="document.getElementById('mediaInput').click()" style="margin-right: 8px;">📎</button>
             <input type="text" id="msgInput" placeholder="Type a message...">
-            <button class="icon-btn" id="voiceBtn">🎙️</button>
         </div>
         <button class="send-btn" id="sendBtn">➤</button>
     </div>
 </div>
+
+<script>
+    // Message scroll automatically to bottom
+    function scrollToBottom() {
+        const chatBox = document.getElementById('chatBox');
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+    // Jab bhi naya message aaye, ye function call karein
+</script>
 </body>
 </html>
