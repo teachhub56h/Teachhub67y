@@ -1,4 +1,4 @@
-const CACHE_NAME = "teachhub-cache-v2";
+const CACHE_NAME = "teachhub-cache-v3";
 const urlsToCache = [
   "./",
   "./index.html",
