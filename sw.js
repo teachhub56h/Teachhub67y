@@ -1,4 +1,6 @@
-const CACHE_NAME = "teachhub-cache-v4";
+importScripts('https://cdn.onesignal.com/sdks/OneSignalSDKWorker.js');
+
+const CACHE_NAME = "teachhub-cache-v5";
 const urlsToCache = [
   "./",
   "./index.html",
