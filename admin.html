@@ -420,6 +420,24 @@
             return hours + ':' + minutes + ' ' + ampm;
         }
 
+        const CLOUDFLARE_WORKER_URL = "https://teachhub-notify.github567h.workers.dev";
+
+        async function sendPushNotification(chatId, messageText) {
+            try {
+                await fetch(CLOUDFLARE_WORKER_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        chat_id: chatId,
+                        title: "Teach Hub Support",
+                        message: messageText
+                    })
+                });
+            } catch (e) {
+                console.log("Push notification failed to send:", e);
+            }
+        }
+
         async function sendMessageToFirebase(type, content) {
             if (!activeDocId) return;
             const timestamp = Date.now();
@@ -434,6 +452,7 @@
             };
 
             await addDoc(collection(db, "group_messages", activeDocId, "messages"), messageData);
+            sendPushNotification(activeDocId, messageData.message_text);
         }
 
         sendBtn.addEventListener('click', () => { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } });
