@@ -110,17 +110,31 @@
         }
 
         let isWindowActive = true;
-        window.addEventListener('focus', () => { isWindowActive = true; });
+        window.addEventListener('focus', () => { isWindowActive = true; updateAppBadge(0); });
         window.addEventListener('blur', () => { isWindowActive = false; });
+
+        function updateAppBadge(count) {
+            try {
+                if (count > 0 && 'setAppBadge' in navigator) {
+                    navigator.setAppBadge(count);
+                } else if ('clearAppBadge' in navigator) {
+                    navigator.clearAppBadge();
+                }
+            } catch (e) {
+                console.log('Badge not supported on this device.');
+            }
+        }
 
         function loadChatSession() {
             const q = query(collection(db, "group_messages", myChatDocId, "messages"), orderBy("time_now", "asc"));
             onSnapshot(q, (snapshot) => {
                 chatBox.innerHTML = "";
+                let unreadCount = 0;
                 snapshot.forEach((snapshotDoc) => {
                     const data = snapshotDoc.data();
 
                     if (data.sender === 'admin') {
+                        if (data.status !== 'read') unreadCount++;
                         const docRef = doc(db, "group_messages", myChatDocId, "messages", snapshotDoc.id);
                         if (isWindowActive && data.status !== 'read') {
                             updateDoc(docRef, { status: 'read' });
@@ -134,6 +148,7 @@
                     renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
                 });
                 chatBox.scrollTop = chatBox.scrollHeight;
+                updateAppBadge(isWindowActive ? 0 : unreadCount);
             });
         }
 
