@@ -32,6 +32,12 @@
         .install-help-box { background: #fff; border-radius: 12px; padding: 20px; max-width: 340px; text-align: center; color: #16232e; font-size: 14px; line-height: 1.5; }
         .install-help-box b { color: #1B4F72; }
         .install-help-box button { margin-top: 14px; background: #1B4F72; color: #fff; border: none; padding: 8px 18px; border-radius: 20px; font-size: 13px; cursor: pointer; }
+        .media-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 2000; align-items: center; justify-content: center; padding: 16px; }
+        .media-lightbox img, .media-lightbox video { max-width: 100%; max-height: 100%; border-radius: 6px; }
+        .media-lightbox-close { position: absolute; top: 16px; right: 16px; color: #fff; font-size: 30px; background: none; border: none; cursor: pointer; line-height: 1; }
+        .video-thumb { position: relative; cursor: pointer; }
+        .video-thumb .play-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 48px; height: 48px; background: rgba(0,0,0,0.55); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; pointer-events: none; }
+        .msg img, .msg .video-thumb video { cursor: pointer; }
 
         /* MESSAGES AREA */
         .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background-color: #eef2f5; }
@@ -170,12 +176,22 @@
                 img.src = content;
                 img.alt = "Image";
                 img.onload = () => { chatBox.scrollTop = chatBox.scrollHeight; };
+                img.addEventListener('click', () => openMediaLightbox('image', content));
                 msgDiv.appendChild(img);
             } else if (type === 'video') {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'video-thumb';
                 const video = document.createElement('video');
                 video.src = content;
-                video.controls = true;
-                msgDiv.appendChild(video);
+                video.preload = "metadata";
+                video.muted = true;
+                const playOverlay = document.createElement('div');
+                playOverlay.className = 'play-overlay';
+                playOverlay.innerText = '▶';
+                wrapper.appendChild(video);
+                wrapper.appendChild(playOverlay);
+                wrapper.addEventListener('click', () => openMediaLightbox('video', content));
+                msgDiv.appendChild(wrapper);
             } else if (type === 'audio') {
                 const audio = document.createElement('audio');
                 audio.src = content;
@@ -200,6 +216,40 @@
             chatBox.appendChild(msgDiv);
         }
 
+        function openMediaLightbox(type, src) {
+            const lightbox = document.getElementById('mediaLightbox');
+            const content = document.getElementById('mediaLightboxContent');
+            content.innerHTML = '';
+            if (type === 'image') {
+                const img = document.createElement('img');
+                img.src = src;
+                content.appendChild(img);
+            } else if (type === 'video') {
+                const video = document.createElement('video');
+                video.src = src;
+                video.controls = true;
+                video.autoplay = true;
+                content.appendChild(video);
+            }
+            lightbox.style.display = 'flex';
+        }
+
+        function closeMediaLightbox() {
+            const lightbox = document.getElementById('mediaLightbox');
+            const content = document.getElementById('mediaLightboxContent');
+            content.innerHTML = '';
+            lightbox.style.display = 'none';
+        }
+
+        const mediaLightboxEl = document.getElementById('mediaLightbox');
+        const mediaLightboxCloseBtn = document.getElementById('mediaLightboxCloseBtn');
+        if (mediaLightboxCloseBtn) mediaLightboxCloseBtn.addEventListener('click', closeMediaLightbox);
+        if (mediaLightboxEl) {
+            mediaLightboxEl.addEventListener('click', (e) => {
+                if (e.target === mediaLightboxEl) closeMediaLightbox();
+            });
+        }
+
         function getFormattedTime() {
             const now = new Date();
             let hours = now.getHours(); let minutes = now.getMinutes();
@@ -214,7 +264,7 @@
             const userRootRef = doc(db, "group_messages", myChatDocId);
             await updateDoc(userRootRef, { lastUpdated: timestamp }).catch(async () => {
                 import("https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js").then(async ({ setDoc }) => {
-                    await setDoc(userRootRef, { sessionCreatedAt: timestamp, statusTag: "" }, { merge: true });
+                    await setDoc(userRootRef, { sessionCreatedAt: timestamp, lastUpdated: timestamp, statusTag: "" }, { merge: true });
                 });
             });
 
@@ -386,6 +436,11 @@
         <p style="margin-top:10px;">Tap the <b>⋮ menu</b> (top-right of your browser) and choose <b>"Install app"</b> or <b>"Add to Home screen"</b>.</p>
         <button id="installHelpClose">Got it</button>
     </div>
+</div>
+
+<div class="media-lightbox" id="mediaLightbox">
+    <button class="media-lightbox-close" id="mediaLightboxCloseBtn">✕</button>
+    <div id="mediaLightboxContent"></div>
 </div>
 </body>
 </html>
