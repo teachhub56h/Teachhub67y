@@ -277,7 +277,11 @@
       // specifically (not broadcast to every student).
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       OneSignalDeferred.push(async function (OneSignal) {
-        await OneSignal.init({ appId: "145bd2e8-5575-4d15-8c2d-ad8fb62251cb" });
+        await OneSignal.init({
+          appId: "145bd2e8-5575-4d15-8c2d-ad8fb62251cb",
+          serviceWorkerParam: { scope: "./" },
+          serviceWorkerPath: "sw.js"
+        });
         try {
           await OneSignal.User.addTag("chat_id", window.myChatDocId);
         } catch (e) {
