@@ -317,6 +317,13 @@
     </script>
 
     <script>
+      // ---- DEBUG PANEL (temporary - helps see what OneSignal is doing) ----
+      function debugLog(msg) {
+        const panel = document.getElementById('debugPanel');
+        if (panel) panel.innerHTML += msg + "<br>";
+        console.log(msg);
+      }
+
       // Service Worker registration (enables offline + installability)
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.register('sw.js');
@@ -327,19 +334,47 @@
       // specifically (not broadcast to every student).
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       OneSignalDeferred.push(async function (OneSignal) {
-        await OneSignal.init({
-          appId: "145bd2e8-5575-4d15-8c2d-ad8fb62251cb",
-          serviceWorkerParam: { scope: "./" },
-          serviceWorkerPath: "sw.js"
-        });
+        debugLog("OneSignal SDK: init starting...");
+        try {
+          await OneSignal.init({
+            appId: "145bd2e8-5575-4d15-8c2d-ad8fb62251cb",
+            serviceWorkerParam: { scope: "./" },
+            serviceWorkerPath: "sw.js"
+          });
+          debugLog("OneSignal SDK: init DONE");
+        } catch (e) {
+          debugLog("OneSignal SDK: init ERROR - " + e.message);
+        }
+
         try {
           await OneSignal.User.addTag("chat_id", window.myChatDocId);
+          debugLog("Tag added OK");
         } catch (e) {
-          console.log("Could not tag OneSignal user yet:", e);
+          debugLog("Could not tag OneSignal user yet: " + e.message);
         }
+
+        debugLog("Chat ID: " + window.myChatDocId);
+        try {
+          debugLog("Permission: " + OneSignal.Notifications.permission);
+        } catch (e) {
+          debugLog("Permission check error: " + e.message);
+        }
+
+        try {
+          const subId = OneSignal.User.PushSubscription.id;
+          const optedIn = OneSignal.User.PushSubscription.optedIn;
+          const token = OneSignal.User.PushSubscription.token;
+          debugLog("Subscription ID: " + subId);
+          debugLog("Opted In: " + optedIn);
+          debugLog("Token exists: " + (token ? "YES" : "NO"));
+        } catch (e) {
+          debugLog("Subscription check error: " + e.message);
+        }
+
         window.__oneSignal = OneSignal;
         window.dispatchEvent(new Event('oneSignalReady'));
       });
+      // ---- END DEBUG PANEL CODE ----
 
       function wireNotifButton(OneSignal) {
         const notifBtn = document.getElementById('notifBtn');
@@ -350,8 +385,27 @@
         };
         refreshNotifBtn();
         notifBtn.addEventListener('click', async () => {
-          await OneSignal.Notifications.requestPermission();
-          try { await OneSignal.User.addTag("chat_id", window.myChatDocId); } catch (e) {}
+          debugLog("Enable Notifications button clicked");
+          try {
+            const result = await OneSignal.Notifications.requestPermission();
+            debugLog("requestPermission result: " + result);
+          } catch (e) {
+            debugLog("requestPermission ERROR: " + e.message);
+          }
+          try {
+            await OneSignal.User.addTag("chat_id", window.myChatDocId);
+            debugLog("Tag re-added after permission");
+          } catch (e) {
+            debugLog("Tag error after permission: " + e.message);
+          }
+          try {
+            const subId = OneSignal.User.PushSubscription.id;
+            const optedIn = OneSignal.User.PushSubscription.optedIn;
+            debugLog("AFTER CLICK - Subscription ID: " + subId);
+            debugLog("AFTER CLICK - Opted In: " + optedIn);
+          } catch (e) {
+            debugLog("AFTER CLICK - error: " + e.message);
+          }
           refreshNotifBtn();
         });
       }
@@ -442,5 +496,7 @@
     <button class="media-lightbox-close" id="mediaLightboxCloseBtn">✕</button>
     <div id="mediaLightboxContent"></div>
 </div>
+
+<div id="debugPanel" style="position:fixed; bottom:0; left:0; right:0; background:#000; color:#0f0; font-size:11px; padding:8px; max-height:150px; overflow-y:auto; z-index:9999; font-family:monospace;"></div>
 </body>
 </html>
