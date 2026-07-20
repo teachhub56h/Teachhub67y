@@ -283,21 +283,36 @@
         } catch (e) {
           console.log("Could not tag OneSignal user yet:", e);
         }
-
-        const notifBtn = document.getElementById('notifBtn');
-        if (notifBtn) {
-          const refreshNotifBtn = () => {
-            const granted = OneSignal.Notifications.permission;
-            notifBtn.style.display = granted ? 'none' : 'inline-block';
-          };
-          refreshNotifBtn();
-          notifBtn.addEventListener('click', async () => {
-            await OneSignal.Notifications.requestPermission();
-            try { await OneSignal.User.addTag("chat_id", window.myChatDocId); } catch (e) {}
-            refreshNotifBtn();
-          });
-        }
+        window.__oneSignal = OneSignal;
+        window.dispatchEvent(new Event('oneSignalReady'));
       });
+
+      function wireNotifButton(OneSignal) {
+        const notifBtn = document.getElementById('notifBtn');
+        if (!notifBtn) return;
+        const refreshNotifBtn = () => {
+          const granted = OneSignal.Notifications.permission;
+          notifBtn.style.display = granted ? 'none' : 'inline-block';
+        };
+        refreshNotifBtn();
+        notifBtn.addEventListener('click', async () => {
+          await OneSignal.Notifications.requestPermission();
+          try { await OneSignal.User.addTag("chat_id", window.myChatDocId); } catch (e) {}
+          refreshNotifBtn();
+        });
+      }
+
+      if (window.__oneSignal) {
+        document.addEventListener('DOMContentLoaded', () => wireNotifButton(window.__oneSignal));
+      } else {
+        window.addEventListener('oneSignalReady', () => {
+          if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', () => wireNotifButton(window.__oneSignal));
+          } else {
+            wireNotifButton(window.__oneSignal);
+          }
+        });
+      }
 
       // Wait until the full page (including the button below) has loaded
       // before attaching any install-button logic.
