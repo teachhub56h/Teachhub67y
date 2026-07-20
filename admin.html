@@ -3,16 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teach Hub - Staff Support</title>
-    <link rel="manifest" href="manifest.json">
+    <title>Teach Hub - Admin Panel</title>
     <link rel="icon" href="logo-192.png" type="image/png">
-    <link rel="apple-touch-icon" href="logo-192.png">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Teach Hub">
-    <meta name="theme-color" content="#1B4F72">
-    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
-
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         body {
@@ -21,25 +13,92 @@
         }
         .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #f5f7f8; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
 
-        /* HEADER */
-        .chat-header { background: #1B4F72; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        /* INBOX VIEW */
+        #inbox-view { display: flex; flex-direction: column; height: 100%; background: #ffffff; }
+        .inbox-header { background: #1B4F72; color: white; padding: 16px; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .inbox-header img { width: 26px; height: 26px; }
+        .user-list { flex: 1; overflow-y: auto; padding: 8px 0; background: #ffffff; }
+
+        .user-item {
+            display: flex; flex-direction: column; padding: 12px 16px;
+            border-bottom: 1px solid #f0f0f0; transition: background 0.2s;
+        }
+        .user-item:hover { background: #f5f6f6; }
+
+        .user-clickable-area {
+            display: flex; align-items: center; gap: 15px; width: 100%; cursor: pointer;
+        }
+
+        .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #1B4F72; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; }
+        .user-details { flex: 1; }
+        .user-phone { font-size: 15px; font-weight: 600; color: #16232e; }
+        .user-subtitle { font-size: 12px; color: #6b7a85; margin-top: 2px; }
+
+        /* STATUS TAGS */
+        .status-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            padding-top: 8px;
+            border-top: 1px dashed #e1e1e1;
+            flex-wrap: wrap;
+        }
+        .status-tag {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 12px;
+            color: white;
+            background-color: #8696a0;
+        }
+        .status-tag.pending { background-color: #e53935; }
+        .status-tag.plan1 { background-color: #1e88e5; }
+        .status-tag.plan2 { background-color: #8e24aa; }
+        .status-tag.completed { background-color: #43a047; }
+        .status-tag.custom { background-color: #f4511e; }
+
+        .status-selector {
+            font-size: 12px;
+            padding: 3px 6px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            outline: none;
+            background: #fff;
+            cursor: pointer;
+        }
+        .remove-status-btn {
+            font-size: 11px;
+            padding: 3px 6px;
+            background: #d32f2f;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        .unread-badge {
+            background-color: #1B84D8;
+            color: white;
+            font-size: 11px;
+            font-weight: bold;
+            min-width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 5px;
+        }
+
+        /* CHAT VIEW */
+        #chat-view { display: none; flex-direction: column; height: 100%; }
+        .chat-header { background: #123a56; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .back-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; }
         .profile-img { width: 40px; height: 40px; border-radius: 12px; background: #ffffff; object-fit: contain; padding: 3px; }
         .header-info { flex: 1; }
         .header-info .name { font-size: 16px; font-weight: 600; }
         .header-info .status { font-size: 12px; color: #a9c6dd; }
-        .install-btn { background: #F4B400; color: #1B4F72; border: none; padding: 6px 10px; border-radius: 14px; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-block; }
-        .install-help-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 999; align-items: center; justify-content: center; padding: 20px; }
-        .install-help-box { background: #fff; border-radius: 12px; padding: 20px; max-width: 340px; text-align: center; color: #16232e; font-size: 14px; line-height: 1.5; }
-        .install-help-box b { color: #1B4F72; }
-        .install-help-box button { margin-top: 14px; background: #1B4F72; color: #fff; border: none; padding: 8px 18px; border-radius: 20px; font-size: 13px; cursor: pointer; }
-        .media-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 2000; align-items: center; justify-content: center; padding: 16px; }
-        .media-lightbox img, .media-lightbox video { max-width: 100%; max-height: 100%; border-radius: 6px; }
-        .media-lightbox-close { position: absolute; top: 16px; right: 16px; color: #fff; font-size: 30px; background: none; border: none; cursor: pointer; line-height: 1; }
-        .video-thumb { position: relative; cursor: pointer; }
-        .video-thumb .play-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 48px; height: 48px; background: rgba(0,0,0,0.55); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; pointer-events: none; }
-        .msg img, .msg .video-thumb video { cursor: pointer; }
-
-        /* MESSAGES AREA */
         .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background-color: #eef2f5; }
 
         .msg {
@@ -83,6 +142,12 @@
         .icon-btn.recording { color: #ea0038; animation: blink 1s infinite; }
         .send-btn { background: #1B4F72; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+        .media-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 2000; align-items: center; justify-content: center; padding: 16px; }
+        .media-lightbox img, .media-lightbox video { max-width: 100%; max-height: 100%; border-radius: 6px; }
+        .media-lightbox-close { position: absolute; top: 16px; right: 16px; color: #fff; font-size: 30px; background: none; border: none; cursor: pointer; line-height: 1; }
+        .video-thumb { position: relative; cursor: pointer; }
+        .video-thumb .play-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 48px; height: 48px; background: rgba(0,0,0,0.55); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; pointer-events: none; }
+        .msg img, .msg .video-thumb video { cursor: pointer; }
     </style>
 
     <script type="module">
@@ -101,49 +166,97 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
+        // Incoming message alert
+        const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
+
+        const inboxView = document.getElementById('inbox-view');
+        const chatView = document.getElementById('chat-view');
+        const userListDiv = document.getElementById('userList');
+        const chatTitle = document.getElementById('chatTitle');
         const chatBox = document.getElementById('chatBox');
         const msgInput = document.getElementById('msgInput');
         const sendBtn = document.getElementById('sendBtn');
         const mediaInput = document.getElementById('mediaInput');
         const voiceBtn = document.getElementById('voiceBtn');
 
-        let currentSender = "user";
+        let activeDocId = "";
+        let currentSender = "admin";
+        let activeChatListener = null;
         let mediaRecorder, audioChunks = [], isRecording = false;
 
-        let myChatDocId = localStorage.getItem('my_chat_session_id');
-        if (!myChatDocId) {
-            myChatDocId = "user_" + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
-            localStorage.setItem('my_chat_session_id', myChatDocId);
-        }
-        window.myChatDocId = myChatDocId;
-
         let isWindowActive = true;
-        window.addEventListener('focus', () => { isWindowActive = true; updateAppBadge(0); });
+        window.addEventListener('focus', () => { isWindowActive = true; });
         window.addEventListener('blur', () => { isWindowActive = false; });
 
-        function updateAppBadge(count) {
+        function getUserFriendlyName(docId) {
+            let savedNames = localStorage.getItem('chatUserNames');
+            savedNames = savedNames ? JSON.parse(savedNames) : {};
+
+            if (savedNames[docId]) {
+                return savedNames[docId];
+            }
+
+            const assignedNumbers = Object.values(savedNames).map(name => {
+                const num = parseInt(name.replace("Student ", ""));
+                return isNaN(num) ? 0 : num;
+            });
+            const nextNumber = assignedNumbers.length > 0 ? Math.max(...assignedNumbers) + 1 : 1;
+            const newName = "Student " + nextNumber;
+
+            savedNames[docId] = newName;
+            localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
+            return newName;
+        }
+
+        async function updateCustomerStatus(docId, newStatus) {
             try {
-                if (count > 0 && 'setAppBadge' in navigator) {
-                    navigator.setAppBadge(count);
-                } else if ('clearAppBadge' in navigator) {
-                    navigator.clearAppBadge();
-                }
-            } catch (e) {
-                console.log('Badge not supported on this device.');
+                const docRef = doc(db, "group_messages", docId);
+                await updateDoc(docRef, { statusTag: newStatus });
+            } catch (error) {
+                console.error("Error updating status: ", error);
             }
         }
 
-        function loadChatSession() {
-            const q = query(collection(db, "group_messages", myChatDocId, "messages"), orderBy("time_now", "asc"));
-            onSnapshot(q, (snapshot) => {
+        window.handleStatusChange = function(selectElement, docId) {
+            const val = selectElement.value;
+            if (val === 'custom') {
+                const customVal = prompt("Enter Custom Status (e.g., Class 9, Fee Pending, Enrolled):");
+                if (customVal && customVal.trim() !== "") {
+                    updateCustomerStatus(docId, customVal.trim());
+                } else {
+                    selectElement.value = "";
+                }
+            } else {
+                updateCustomerStatus(docId, val);
+            }
+        };
+
+        window.removeStatus = function(docId) {
+            if (confirm("Are you sure you want to remove the status?")) {
+                updateCustomerStatus(docId, "");
+            }
+        };
+
+        window.openChat = function(docId, userName) {
+            activeDocId = docId;
+            inboxView.style.display = 'none';
+            chatView.style.display = 'flex';
+            chatTitle.innerText = userName;
+
+            const q = query(collection(db, "group_messages", activeDocId, "messages"), orderBy("time_now", "asc"));
+            activeChatListener = onSnapshot(q, (snapshot) => {
                 chatBox.innerHTML = "";
-                let unreadCount = 0;
+                let hasNewIncomingMsg = false;
+
                 snapshot.forEach((snapshotDoc) => {
                     const data = snapshotDoc.data();
 
-                    if (data.sender === 'admin') {
-                        if (data.status !== 'read') unreadCount++;
-                        const docRef = doc(db, "group_messages", myChatDocId, "messages", snapshotDoc.id);
+                    if (data.sender === 'user') {
+                        if (data.status !== 'read') {
+                            hasNewIncomingMsg = true;
+                        }
+
+                        const docRef = doc(db, "group_messages", activeDocId, "messages", snapshotDoc.id);
                         if (isWindowActive && data.status !== 'read') {
                             updateDoc(docRef, { status: 'read' });
                         } else if (!isWindowActive && (!data.status || data.status === 'sent')) {
@@ -155,10 +268,114 @@
                     const messageContent = data.file_url || data.content || data.message_text;
                     renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
                 });
+
+                if (hasNewIncomingMsg) {
+                    msgSound.play().catch(e => {
+                        console.log("Audio autoplay blocked by browser. Click anywhere on page first.");
+                    });
+                }
+
                 chatBox.scrollTop = chatBox.scrollHeight;
-                updateAppBadge(isWindowActive ? 0 : unreadCount);
             });
+        };
+
+        async function loadInbox() {
+            inboxView.style.display = 'flex';
+            chatView.style.display = 'none';
+            if (activeChatListener) {
+                activeChatListener();
+                activeChatListener = null;
+            }
+
+            userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Loading conversations...</div>";
+
+            try {
+                onSnapshot(collection(db, "group_messages"), (querySnapshot) => {
+                    userListDiv.innerHTML = "";
+
+                    if (querySnapshot.empty) {
+                        userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>No active chats found.</div>";
+                        return;
+                    }
+
+                    const sortedDocs = [...querySnapshot.docs].sort((a, b) => {
+                        const aTime = a.data().lastUpdated || 0;
+                        const bTime = b.data().lastUpdated || 0;
+                        return bTime - aTime;
+                    });
+
+                    sortedDocs.forEach((documentSnapshot) => {
+                        const docId = documentSnapshot.id;
+                        const docData = documentSnapshot.data();
+                        const userName = getUserFriendlyName(docId);
+                        const activeStatus = docData.statusTag || "";
+
+                        let tagClass = "status-tag";
+                        if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
+                        else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
+                        else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
+                        else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
+                        else if (activeStatus !== "") tagClass += " custom";
+
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'user-item';
+                        itemDiv.id = `inbox-item-${docId}`;
+
+                        itemDiv.innerHTML = `
+                            <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
+                                <div class="user-avatar">🎓</div>
+                                <div class="user-details">
+                                    <div class="user-phone">${userName}</div>
+                                    <div class="user-subtitle">ID: ${docId.substring(0, 15)}...</div>
+                                </div>
+                                <div id="badge-${docId}" class="unread-badge" style="display: none;">0</div>
+                            </div>
+                            <div class="status-container">
+                                ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px; color:#aaa;">No tag</span>'}
+                                <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
+                                    <option value="" disabled selected>Assign status...</option>
+                                    <option value="Payment Pending">Payment Pending</option>
+                                    <option value="Plan 1">Plan 1</option>
+                                    <option value="Plan 2">Plan 2</option>
+                                    <option value="Completed">Completed</option>
+                                    <option value="custom">✍️ Custom Status...</option>
+                                </select>
+                                ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
+                            </div>
+                        `;
+                        userListDiv.appendChild(itemDiv);
+
+                        const messagesRef = collection(db, "group_messages", docId, "messages");
+                        onSnapshot(messagesRef, (msgSnapshot) => {
+                            let unreadCount = 0;
+                            msgSnapshot.forEach((msgDoc) => {
+                                const msgData = msgDoc.data();
+                                if (msgData.sender === 'user' && msgData.status !== 'read') {
+                                    unreadCount++;
+                                }
+                            });
+
+                            const badge = document.getElementById(`badge-${docId}`);
+                            if (badge) {
+                                if (unreadCount > 0) {
+                                    badge.innerText = unreadCount;
+                                    badge.style.display = 'flex';
+                                } else {
+                                    badge.style.display = 'none';
+                                }
+                            }
+                        });
+                    });
+                });
+            } catch (error) {
+                console.error("Error loading inbox: ", error);
+                userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: red;'>Failed to load chats.</div>";
+            }
         }
+
+        window.goBackToInbox = function() {
+            loadInbox();
+        };
 
         function renderMessage(id, sender, type, content, timeStr, status) {
             const msgDiv = document.createElement('div');
@@ -259,15 +476,27 @@
             return hours + ':' + minutes + ' ' + ampm;
         }
 
-        async function sendMessageToFirebase(type, content) {
-            const timestamp = Date.now();
-            const userRootRef = doc(db, "group_messages", myChatDocId);
-            await updateDoc(userRootRef, { lastUpdated: timestamp }).catch(async () => {
-                import("https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js").then(async ({ setDoc }) => {
-                    await setDoc(userRootRef, { sessionCreatedAt: timestamp, lastUpdated: timestamp, statusTag: "" }, { merge: true });
-                });
-            });
+        const CLOUDFLARE_WORKER_URL = "https://teachhub-notify.github567h.workers.dev";
 
+        async function sendPushNotification(chatId, messageText) {
+            try {
+                await fetch(CLOUDFLARE_WORKER_URL, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        chat_id: chatId,
+                        title: "Teach Hub Support",
+                        message: messageText
+                    })
+                });
+            } catch (e) {
+                console.log("Push notification failed to send:", e);
+            }
+        }
+
+        async function sendMessageToFirebase(type, content) {
+            if (!activeDocId) return;
+            const timestamp = Date.now();
             const messageData = {
                 sender: currentSender,
                 type: type,
@@ -278,7 +507,9 @@
                 message_text: type === 'text' ? content : `Sent a ${type}`
             };
 
-            await addDoc(collection(db, "group_messages", myChatDocId, "messages"), messageData);
+            await addDoc(collection(db, "group_messages", activeDocId, "messages"), messageData);
+            sendPushNotification(activeDocId, messageData.message_text);
+            updateDoc(doc(db, "group_messages", activeDocId), { lastUpdated: timestamp }).catch(() => {});
         }
 
         sendBtn.addEventListener('click', () => { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } });
@@ -313,128 +544,38 @@
             } else { mediaRecorder.stop(); isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.innerText = "🎙️"; }
         });
 
-        loadChatSession();
-    </script>
-
-    <script>
-      // Service Worker registration (enables offline + installability)
-      if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js');
-      }
-
-      // OneSignal push notifications: initialize and tag this device with
-      // the student's unique chat ID, so messages can be targeted to them
-      // specifically (not broadcast to every student).
-      window.OneSignalDeferred = window.OneSignalDeferred || [];
-      OneSignalDeferred.push(async function (OneSignal) {
-        await OneSignal.init({
-          appId: "145bd2e8-5575-4d15-8c2d-ad8fb62251cb",
-          serviceWorkerParam: { scope: "./" },
-          serviceWorkerPath: "sw.js"
-        });
-        try {
-          await OneSignal.User.addTag("chat_id", window.myChatDocId);
-        } catch (e) {
-          console.log("Could not tag OneSignal user yet:", e);
-        }
-        window.__oneSignal = OneSignal;
-        window.dispatchEvent(new Event('oneSignalReady'));
-      });
-
-      function wireNotifButton(OneSignal) {
-        const notifBtn = document.getElementById('notifBtn');
-        if (!notifBtn) return;
-        const refreshNotifBtn = () => {
-          const granted = OneSignal.Notifications.permission;
-          notifBtn.style.display = granted ? 'none' : 'inline-block';
-        };
-        refreshNotifBtn();
-        notifBtn.addEventListener('click', async () => {
-          await OneSignal.Notifications.requestPermission();
-          try { await OneSignal.User.addTag("chat_id", window.myChatDocId); } catch (e) {}
-          refreshNotifBtn();
-        });
-      }
-
-      if (window.__oneSignal) {
-        document.addEventListener('DOMContentLoaded', () => wireNotifButton(window.__oneSignal));
-      } else {
-        window.addEventListener('oneSignalReady', () => {
-          if (document.readyState === 'loading') {
-            document.addEventListener('DOMContentLoaded', () => wireNotifButton(window.__oneSignal));
-          } else {
-            wireNotifButton(window.__oneSignal);
-          }
-        });
-      }
-
-      // Wait until the full page (including the button below) has loaded
-      // before attaching any install-button logic.
-      document.addEventListener('DOMContentLoaded', () => {
-        let deferredPrompt;
-        const installBtn = document.getElementById('installBtn');
-        const helpOverlay = document.getElementById('installHelpOverlay');
-        const helpCloseBtn = document.getElementById('installHelpClose');
-
-        window.addEventListener('beforeinstallprompt', (e) => {
-          e.preventDefault();
-          deferredPrompt = e;
-        });
-
-        if (installBtn) {
-          installBtn.addEventListener('click', async () => {
-            if (deferredPrompt) {
-              deferredPrompt.prompt();
-              await deferredPrompt.userChoice;
-              deferredPrompt = null;
-            } else if (helpOverlay) {
-              helpOverlay.style.display = 'flex';
-            }
-          });
-        }
-
-        if (helpCloseBtn) {
-          helpCloseBtn.addEventListener('click', () => {
-            helpOverlay.style.display = 'none';
-          });
-        }
-
-        window.addEventListener('appinstalled', () => {
-          if (installBtn) installBtn.style.display = 'none';
-        });
-      });
+        loadInbox();
     </script>
 </head>
 <body>
 <div class="chat-container">
-    <div class="chat-header">
-        <img class="profile-img" src="logo-192.png" alt="Teach Hub">
-        <div class="header-info">
-            <div class="name">Teach Hub Support</div>
-            <div class="status">Staff support · Online</div>
+    <div id="inbox-view">
+        <div class="inbox-header">
+            <img src="logo-192.png" alt="Teach Hub">
+            <span>Teach Hub - Staff Inbox</span>
         </div>
-        <button class="install-btn" id="notifBtn" style="margin-right:6px; display:none;">🔔 Enable Notifications</button>
-        <button class="install-btn" id="installBtn">📲 Install App</button>
+        <div class="user-list" id="userList"></div>
     </div>
 
-    <div class="chat-messages" id="chatBox"></div>
-
-    <div class="chat-input-area">
-        <div class="input-container">
-            <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
-            <button class="icon-btn" onclick="document.getElementById('mediaInput').click()" style="margin-right: 8px;">📎</button>
-            <input type="text" id="msgInput" placeholder="Type a message...">
-            <button class="icon-btn" id="voiceBtn">🎙️</button>
+    <div id="chat-view">
+        <div class="chat-header">
+            <button class="back-btn" onclick="goBackToInbox()">←</button>
+            <img class="profile-img" src="logo-192.png" alt="Profile">
+            <div class="header-info">
+                <div class="name" id="chatTitle">Support Panel</div>
+                <div class="status">active chat session</div>
+            </div>
         </div>
-        <button class="send-btn" id="sendBtn">➤</button>
-    </div>
-</div>
-
-<div class="install-help-overlay" id="installHelpOverlay">
-    <div class="install-help-box">
-        <p>To install this app on your home screen:</p>
-        <p style="margin-top:10px;">Tap the <b>⋮ menu</b> (top-right of your browser) and choose <b>"Install app"</b> or <b>"Add to Home screen"</b>.</p>
-        <button id="installHelpClose">Got it</button>
+        <div class="chat-messages" id="chatBox"></div>
+        <div class="chat-input-area">
+            <div class="input-container">
+                <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
+                <button class="icon-btn" onclick="document.getElementById('mediaInput').click()" style="margin-right: 8px;">📎</button>
+                <input type="text" id="msgInput" placeholder="Reply to student...">
+                <button class="icon-btn" id="voiceBtn">🎙️</button>
+            </div>
+            <button class="send-btn" id="sendBtn">➤</button>
+        </div>
     </div>
 </div>
 
