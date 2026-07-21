@@ -144,6 +144,11 @@
         .video-thumb { position: relative; cursor: pointer; }
         .video-thumb .play-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 48px; height: 48px; background: rgba(0,0,0,0.55); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; pointer-events: none; }
         .msg img, .msg .video-thumb video { cursor: pointer; }
+        
+        /* 🔥 Notification Status in Header */
+        .notif-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; display: inline-block; }
+        .notif-status.on { background: #43a047; color: white; }
+        .notif-status.off { background: #e53935; color: white; }
     </style>
 
     <script type="module">
@@ -181,7 +186,6 @@
         window.addEventListener('focus', () => { isWindowActive = true; });
         window.addEventListener('blur', () => { isWindowActive = false; });
 
-        // 🔥 Incoming message sound
         const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
 
         function getUserFriendlyName(docId) {
@@ -472,7 +476,7 @@
             return hours + ':' + minutes + ' ' + ampm;
         }
 
-        // 🔥 OneSignal Notification Send with Sound + Vibration
+        // 🔥 OneSignal Notification Send with FULL SOUND + VIBRATION
         async function sendOneSignalNotification(chatId, messageText) {
             try {
                 const ONESIGNAL_APP_ID = "145bd2e8-5575-4d15-8c2d-ad8fb62251cb";
@@ -500,13 +504,13 @@
                         contents: { 
                             en: `Admin: ${messageText}` 
                         },
-                        // 🔥 SOUND + VIBRATION ADDED
+                        // 🔥 SOUND + VIBRATION + PRIORITY
                         "ios_sound": "notification.wav",
                         "android_sound": "notification",
                         "android_led_color": "FF0000FF",
                         "android_accent_color": "FF1B4F72",
                         "priority": 10,
-                        "vibrate": [200, 100, 200],
+                        "vibrate": [200, 100, 200, 100, 400],
                         web_buttons: [
                             { 
                                 id: "open", 
@@ -517,7 +521,7 @@
                     })
                 });
                 const result = await response.json();
-                console.log('✅ OneSignal notification sent with sound:', result);
+                console.log('✅ OneSignal notification sent with sound + vibration:', result);
             } catch (e) {
                 console.log('❌ OneSignal notification failed:', e);
             }
