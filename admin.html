@@ -144,444 +144,7 @@
         .video-thumb { position: relative; cursor: pointer; }
         .video-thumb .play-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 48px; height: 48px; background: rgba(0,0,0,0.55); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; pointer-events: none; }
         .msg img, .msg .video-thumb video { cursor: pointer; }
-        
-        /* 🔥 Notification Status in Header */
-        .notif-status { font-size: 11px; padding: 2px 8px; border-radius: 10px; display: inline-block; }
-        .notif-status.on { background: #43a047; color: white; }
-        .notif-status.off { background: #e53935; color: white; }
     </style>
-
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs, updateDoc, doc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
-
-        const firebaseConfig = {
-            apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
-            authDomain: "newpro-affc8.firebaseapp.com",
-            projectId: "newpro-affc8",
-            storageBucket: "newpro-affc8.firebasestorage.app",
-            messagingSenderId: "1080341611919",
-            appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
-        };
-
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        const inboxView = document.getElementById('inbox-view');
-        const chatView = document.getElementById('chat-view');
-        const userListDiv = document.getElementById('userList');
-        const chatTitle = document.getElementById('chatTitle');
-        const chatBox = document.getElementById('chatBox');
-        const msgInput = document.getElementById('msgInput');
-        const sendBtn = document.getElementById('sendBtn');
-        const mediaInput = document.getElementById('mediaInput');
-        const voiceBtn = document.getElementById('voiceBtn');
-
-        let activeDocId = "";
-        let currentSender = "admin";
-        let activeChatListener = null;
-        let mediaRecorder, audioChunks = [], isRecording = false;
-
-        let isWindowActive = true;
-        window.addEventListener('focus', () => { isWindowActive = true; });
-        window.addEventListener('blur', () => { isWindowActive = false; });
-
-        const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
-
-        function getUserFriendlyName(docId) {
-            let savedNames = localStorage.getItem('chatUserNames');
-            savedNames = savedNames ? JSON.parse(savedNames) : {};
-
-            if (savedNames[docId]) {
-                return savedNames[docId];
-            }
-
-            const assignedNumbers = Object.values(savedNames).map(name => {
-                const num = parseInt(name.replace("Student ", ""));
-                return isNaN(num) ? 0 : num;
-            });
-            const nextNumber = assignedNumbers.length > 0 ? Math.max(...assignedNumbers) + 1 : 1;
-            const newName = "Student " + nextNumber;
-
-            savedNames[docId] = newName;
-            localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
-            return newName;
-        }
-
-        async function updateCustomerStatus(docId, newStatus) {
-            try {
-                const docRef = doc(db, "group_messages", docId);
-                await updateDoc(docRef, { statusTag: newStatus });
-            } catch (error) {
-                console.error("Error updating status: ", error);
-            }
-        }
-
-        window.handleStatusChange = function(selectElement, docId) {
-            const val = selectElement.value;
-            if (val === 'custom') {
-                const customVal = prompt("Enter Custom Status (e.g., Class 9, Fee Pending, Enrolled):");
-                if (customVal && customVal.trim() !== "") {
-                    updateCustomerStatus(docId, customVal.trim());
-                } else {
-                    selectElement.value = "";
-                }
-            } else {
-                updateCustomerStatus(docId, val);
-            }
-        };
-
-        window.removeStatus = function(docId) {
-            if (confirm("Are you sure you want to remove the status?")) {
-                updateCustomerStatus(docId, "");
-            }
-        };
-
-        window.openChat = function(docId, userName) {
-            activeDocId = docId;
-            inboxView.style.display = 'none';
-            chatView.style.display = 'flex';
-            chatTitle.innerText = userName;
-
-            const q = query(collection(db, "group_messages", activeDocId, "messages"), orderBy("time_now", "asc"));
-            activeChatListener = onSnapshot(q, (snapshot) => {
-                chatBox.innerHTML = "";
-                let hasNewIncomingMsg = false;
-
-                snapshot.forEach((snapshotDoc) => {
-                    const data = snapshotDoc.data();
-
-                    if (data.sender === 'user') {
-                        if (data.status !== 'read') {
-                            hasNewIncomingMsg = true;
-                        }
-
-                        const docRef = doc(db, "group_messages", activeDocId, "messages", snapshotDoc.id);
-                        if (isWindowActive && data.status !== 'read') {
-                            updateDoc(docRef, { status: 'read' });
-                        } else if (!isWindowActive && (!data.status || data.status === 'sent')) {
-                            updateDoc(docRef, { status: 'delivered' });
-                        }
-                    }
-
-                    const timeLabel = data.time_label || getFormattedTime();
-                    const messageContent = data.file_url || data.content || data.message_text;
-                    renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
-                });
-
-                if (hasNewIncomingMsg) {
-                    msgSound.play().catch(e => {
-                        console.log("Audio autoplay blocked by browser. Click anywhere on page first.");
-                    });
-                }
-
-                chatBox.scrollTop = chatBox.scrollHeight;
-            });
-        };
-
-        async function loadInbox() {
-            inboxView.style.display = 'flex';
-            chatView.style.display = 'none';
-            if (activeChatListener) {
-                activeChatListener();
-                activeChatListener = null;
-            }
-
-            userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Loading conversations...</div>";
-
-            try {
-                onSnapshot(collection(db, "group_messages"), (querySnapshot) => {
-                    userListDiv.innerHTML = "";
-
-                    if (querySnapshot.empty) {
-                        userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>No active chats found.</div>";
-                        return;
-                    }
-
-                    const sortedDocs = [...querySnapshot.docs].sort((a, b) => {
-                        const aTime = a.data().lastUpdated || 0;
-                        const bTime = b.data().lastUpdated || 0;
-                        return bTime - aTime;
-                    });
-
-                    sortedDocs.forEach((documentSnapshot) => {
-                        const docId = documentSnapshot.id;
-                        const docData = documentSnapshot.data();
-                        const userName = getUserFriendlyName(docId);
-                        const activeStatus = docData.statusTag || "";
-
-                        let tagClass = "status-tag";
-                        if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
-                        else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
-                        else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
-                        else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
-                        else if (activeStatus !== "") tagClass += " custom";
-
-                        const itemDiv = document.createElement('div');
-                        itemDiv.className = 'user-item';
-                        itemDiv.id = `inbox-item-${docId}`;
-
-                        itemDiv.innerHTML = `
-                            <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
-                                <div class="user-avatar">🎓</div>
-                                <div class="user-details">
-                                    <div class="user-phone">${userName}</div>
-                                    <div class="user-subtitle">ID: ${docId.substring(0, 15)}...</div>
-                                </div>
-                                <div id="badge-${docId}" class="unread-badge" style="display: none;">0</div>
-                            </div>
-                            <div class="status-container">
-                                ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px; color:#aaa;">No tag</span>'}
-                                <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
-                                    <option value="" disabled selected>Assign status...</option>
-                                    <option value="Payment Pending">Payment Pending</option>
-                                    <option value="Plan 1">Plan 1</option>
-                                    <option value="Plan 2">Plan 2</option>
-                                    <option value="Completed">Completed</option>
-                                    <option value="custom">✍️ Custom Status...</option>
-                                </select>
-                                ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
-                            </div>
-                        `;
-                        userListDiv.appendChild(itemDiv);
-
-                        const messagesRef = collection(db, "group_messages", docId, "messages");
-                        onSnapshot(messagesRef, (msgSnapshot) => {
-                            let unreadCount = 0;
-                            msgSnapshot.forEach((msgDoc) => {
-                                const msgData = msgDoc.data();
-                                if (msgData.sender === 'user' && msgData.status !== 'read') {
-                                    unreadCount++;
-                                }
-                            });
-
-                            const badge = document.getElementById(`badge-${docId}`);
-                            if (badge) {
-                                if (unreadCount > 0) {
-                                    badge.innerText = unreadCount;
-                                    badge.style.display = 'flex';
-                                } else {
-                                    badge.style.display = 'none';
-                                }
-                            }
-                        });
-                    });
-                });
-            } catch (error) {
-                console.error("Error loading inbox: ", error);
-                userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: red;'>Failed to load chats.</div>";
-            }
-        }
-
-        window.goBackToInbox = function() {
-            loadInbox();
-        };
-
-        function renderMessage(id, sender, type, content, timeStr, status) {
-            const msgDiv = document.createElement('div');
-            const isMe = sender === currentSender;
-            msgDiv.classList.add('msg', isMe ? 'sent-by-me' : 'received-by-me');
-
-            if (!content) return;
-
-            if (type === 'text') {
-                const textNode = document.createElement('span');
-                textNode.innerText = content;
-                msgDiv.appendChild(textNode);
-            } else if (type === 'image') {
-                const img = document.createElement('img');
-                img.src = content;
-                img.alt = "Image";
-                img.onload = () => { chatBox.scrollTop = chatBox.scrollHeight; };
-                img.addEventListener('click', () => openMediaLightbox('image', content));
-                msgDiv.appendChild(img);
-            } else if (type === 'video') {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'video-thumb';
-                const video = document.createElement('video');
-                video.src = content;
-                video.preload = "metadata";
-                video.muted = true;
-                const playOverlay = document.createElement('div');
-                playOverlay.className = 'play-overlay';
-                playOverlay.innerText = '▶';
-                wrapper.appendChild(video);
-                wrapper.appendChild(playOverlay);
-                wrapper.addEventListener('click', () => openMediaLightbox('video', content));
-                msgDiv.appendChild(wrapper);
-            } else if (type === 'audio') {
-                const audio = document.createElement('audio');
-                audio.src = content;
-                audio.controls = true;
-                audio.preload = "auto";
-                msgDiv.appendChild(audio);
-            }
-
-            let ticksHtml = '';
-            if (isMe) {
-                if (status === 'sent') ticksHtml = '<span class="tick sent">✓</span>';
-                else if (status === 'delivered') ticksHtml = '<span class="tick delivered">✓✓</span>';
-                else if (status === 'read') ticksHtml = '<span class="tick read">✓✓</span>';
-                else ticksHtml = '<span class="tick sent">✓</span>';
-            }
-
-            const metaDiv = document.createElement('div');
-            metaDiv.classList.add('msg-meta');
-            metaDiv.innerHTML = `<span>${timeStr || ''}</span> ${ticksHtml}`;
-            msgDiv.appendChild(metaDiv);
-
-            chatBox.appendChild(msgDiv);
-        }
-
-        function openMediaLightbox(type, src) {
-            const lightbox = document.getElementById('mediaLightbox');
-            const content = document.getElementById('mediaLightboxContent');
-            content.innerHTML = '';
-            if (type === 'image') {
-                const img = document.createElement('img');
-                img.src = src;
-                content.appendChild(img);
-            } else if (type === 'video') {
-                const video = document.createElement('video');
-                video.src = src;
-                video.controls = true;
-                video.autoplay = true;
-                content.appendChild(video);
-            }
-            lightbox.style.display = 'flex';
-        }
-
-        function closeMediaLightbox() {
-            const lightbox = document.getElementById('mediaLightbox');
-            const content = document.getElementById('mediaLightboxContent');
-            content.innerHTML = '';
-            lightbox.style.display = 'none';
-        }
-
-        const mediaLightboxEl = document.getElementById('mediaLightbox');
-        const mediaLightboxCloseBtn = document.getElementById('mediaLightboxCloseBtn');
-        if (mediaLightboxCloseBtn) mediaLightboxCloseBtn.addEventListener('click', closeMediaLightbox);
-        if (mediaLightboxEl) {
-            mediaLightboxEl.addEventListener('click', (e) => {
-                if (e.target === mediaLightboxEl) closeMediaLightbox();
-            });
-        }
-
-        function getFormattedTime() {
-            const now = new Date();
-            let hours = now.getHours(); let minutes = now.getMinutes();
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            hours = hours % 12; hours = hours ? hours : 12;
-            minutes = minutes < 10 ? '0'+minutes : minutes;
-            return hours + ':' + minutes + ' ' + ampm;
-        }
-
-        // 🔥 OneSignal Notification Send with FULL SOUND + VIBRATION
-        async function sendOneSignalNotification(chatId, messageText) {
-            try {
-                const ONESIGNAL_APP_ID = "145bd2e8-5575-4d15-8c2d-ad8fb62251cb";
-                const ONESIGNAL_API_KEY = "vc1g15hfyezwcnct2wbkygorp";
-                
-                const response = await fetch("https://onesignal.com/api/v1/notifications", {
-                    method: "POST",
-                    headers: {
-                        "Content-Type": "application/json",
-                        "Authorization": `Basic ${ONESIGNAL_API_KEY}`
-                    },
-                    body: JSON.stringify({
-                        app_id: ONESIGNAL_APP_ID,
-                        filters: [
-                            { 
-                                field: "tag", 
-                                key: "chat_id", 
-                                relation: "=", 
-                                value: chatId 
-                            }
-                        ],
-                        headings: { 
-                            en: "📩 Teach Hub Support" 
-                        },
-                        contents: { 
-                            en: `Admin: ${messageText}` 
-                        },
-                        // 🔥 SOUND + VIBRATION + PRIORITY
-                        "ios_sound": "notification.wav",
-                        "android_sound": "notification",
-                        "android_led_color": "FF0000FF",
-                        "android_accent_color": "FF1B4F72",
-                        "priority": 10,
-                        "vibrate": [200, 100, 200, 100, 400],
-                        web_buttons: [
-                            { 
-                                id: "open", 
-                                text: "📩 Open Chat", 
-                                url: window.location.href 
-                            }
-                        ]
-                    })
-                });
-                const result = await response.json();
-                console.log('✅ OneSignal notification sent with sound + vibration:', result);
-            } catch (e) {
-                console.log('❌ OneSignal notification failed:', e);
-            }
-        }
-
-        async function sendMessageToFirebase(type, content) {
-            if (!activeDocId) return;
-            const timestamp = Date.now();
-            const messageData = {
-                sender: currentSender,
-                type: type,
-                time_now: timestamp,
-                time_label: getFormattedTime(),
-                status: "sent",
-                file_url: type !== 'text' ? content : "",
-                message_text: type === 'text' ? content : `Sent a ${type}`
-            };
-
-            await addDoc(collection(db, "group_messages", activeDocId, "messages"), messageData);
-            
-            // 🔥 OneSignal Notification with Sound
-            await sendOneSignalNotification(activeDocId, messageData.message_text);
-            
-            updateDoc(doc(db, "group_messages", activeDocId), { lastUpdated: timestamp }).catch(() => {});
-        }
-
-        sendBtn.addEventListener('click', () => { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } });
-        msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } } });
-
-        const toBase64 = file => new Promise((resolve, reject) => {
-            const reader = new FileReader(); reader.readAsDataURL(file);
-            reader.onload = () => resolve(reader.result); reader.onerror = error => reject(error);
-        });
-
-        mediaInput.addEventListener('change', async (e) => {
-            const file = e.target.files[0]; if (!file) return;
-            if (file.size > 1548576) { alert("File size limit is 1.5MB."); return; }
-            let fileType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'text';
-            const base64 = await toBase64(file);
-            sendMessageToFirebase(fileType, base64);
-        });
-
-        voiceBtn.addEventListener('click', async () => {
-            if (!isRecording) {
-                if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-                    mediaRecorder = new MediaRecorder(stream); audioChunks = [];
-                    mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-                    mediaRecorder.onstop = async () => {
-                        const blob = new Blob(audioChunks, { type: 'audio/mp3' });
-                        const base64 = await toBase64(blob);
-                        sendMessageToFirebase('audio', base64);
-                    };
-                    mediaRecorder.start(); isRecording = true; voiceBtn.classList.add('recording'); voiceBtn.innerText = "🛑";
-                }
-            } else { mediaRecorder.stop(); isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.innerText = "🎙️"; }
-        });
-
-        loadInbox();
-    </script>
 </head>
 <body>
 <div class="chat-container">
@@ -619,5 +182,500 @@
     <button class="media-lightbox-close" id="mediaLightboxCloseBtn">✕</button>
     <div id="mediaLightboxContent"></div>
 </div>
+
+<!-- ========================================== -->
+<!-- 🔥 FIREBASE SDKs                          -->
+<!-- ========================================== -->
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+
+<script>
+// ==========================================
+// 🔥 FIREBASE CONFIG
+// ==========================================
+const firebaseConfig = {
+    apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
+    authDomain: "newpro-affc8.firebaseapp.com",
+    projectId: "newpro-affc8",
+    storageBucket: "newpro-affc8.firebasestorage.app",
+    messagingSenderId: "1080341611919",
+    appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
+};
+
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+
+// ==========================================
+// 🔥 DOM REFERENCES
+// ==========================================
+const inboxView = document.getElementById('inbox-view');
+const chatView = document.getElementById('chat-view');
+const userListDiv = document.getElementById('userList');
+const chatTitle = document.getElementById('chatTitle');
+const chatBox = document.getElementById('chatBox');
+const msgInput = document.getElementById('msgInput');
+const sendBtn = document.getElementById('sendBtn');
+const mediaInput = document.getElementById('mediaInput');
+const voiceBtn = document.getElementById('voiceBtn');
+
+let activeDocId = "";
+let activeChatListener = null;
+let mediaRecorder, audioChunks = [], isRecording = false;
+let isWindowActive = true;
+
+window.addEventListener('focus', () => { isWindowActive = true; });
+window.addEventListener('blur', () => { isWindowActive = false; });
+
+// ==========================================
+// 🔥 INCOMING MESSAGE SOUND
+// ==========================================
+const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
+
+// ==========================================
+// 🔥 GET USER FRIENDLY NAME
+// ==========================================
+function getUserFriendlyName(docId) {
+    let savedNames = localStorage.getItem('chatUserNames');
+    savedNames = savedNames ? JSON.parse(savedNames) : {};
+
+    if (savedNames[docId]) {
+        return savedNames[docId];
+    }
+
+    const assignedNumbers = Object.values(savedNames).map(name => {
+        const num = parseInt(name.replace("Student ", ""));
+        return isNaN(num) ? 0 : num;
+    });
+    const nextNumber = assignedNumbers.length > 0 ? Math.max(...assignedNumbers) + 1 : 1;
+    const newName = "Student " + nextNumber;
+
+    savedNames[docId] = newName;
+    localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
+    return newName;
+}
+
+// ==========================================
+// 🔥 UPDATE STUDENT STATUS
+// ==========================================
+async function updateCustomerStatus(docId, newStatus) {
+    try {
+        await db.collection('group_messages').doc(docId).update({ statusTag: newStatus });
+    } catch (error) {
+        console.error("Error updating status: ", error);
+    }
+}
+
+window.handleStatusChange = function(selectElement, docId) {
+    const val = selectElement.value;
+    if (val === 'custom') {
+        const customVal = prompt("Enter Custom Status (e.g., Class 9, Fee Pending, Enrolled):");
+        if (customVal && customVal.trim() !== "") {
+            updateCustomerStatus(docId, customVal.trim());
+        } else {
+            selectElement.value = "";
+        }
+    } else {
+        updateCustomerStatus(docId, val);
+    }
+};
+
+window.removeStatus = function(docId) {
+    if (confirm("Are you sure you want to remove the status?")) {
+        updateCustomerStatus(docId, "");
+    }
+};
+
+// ==========================================
+// 🔥 OPEN CHAT
+// ==========================================
+window.openChat = function(docId, userName) {
+    activeDocId = docId;
+    inboxView.style.display = 'none';
+    chatView.style.display = 'flex';
+    chatTitle.innerText = userName;
+
+    if (activeChatListener) {
+        activeChatListener();
+        activeChatListener = null;
+    }
+
+    activeChatListener = db.collection('group_messages')
+        .doc(activeDocId)
+        .collection('messages')
+        .orderBy('time_now', 'asc')
+        .onSnapshot((snapshot) => {
+            chatBox.innerHTML = "";
+            let hasNewIncomingMsg = false;
+
+            snapshot.forEach((doc) => {
+                const data = doc.data();
+
+                if (data.sender === 'user') {
+                    if (data.status !== 'read') {
+                        hasNewIncomingMsg = true;
+                    }
+                    if (isWindowActive && data.status !== 'read') {
+                        doc.ref.update({ status: 'read' });
+                    } else if (!isWindowActive && (!data.status || data.status === 'sent')) {
+                        doc.ref.update({ status: 'delivered' });
+                    }
+                }
+
+                const timeLabel = data.time_label || getFormattedTime();
+                const messageContent = data.file_url || data.content || data.message_text;
+                renderMessage(doc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
+            });
+
+            if (hasNewIncomingMsg) {
+                msgSound.play().catch(e => console.log("Audio blocked"));
+            }
+
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
+};
+
+// ==========================================
+// 🔥 LOAD INBOX
+// ==========================================
+async function loadInbox() {
+    inboxView.style.display = 'flex';
+    chatView.style.display = 'none';
+    if (activeChatListener) {
+        activeChatListener();
+        activeChatListener = null;
+    }
+
+    userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Loading conversations...</div>";
+
+    try {
+        db.collection('group_messages')
+            .orderBy('lastUpdated', 'desc')
+            .onSnapshot((querySnapshot) => {
+                userListDiv.innerHTML = "";
+
+                if (querySnapshot.empty) {
+                    userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>No active chats found.</div>";
+                    return;
+                }
+
+                querySnapshot.forEach((documentSnapshot) => {
+                    const docId = documentSnapshot.id;
+                    const docData = documentSnapshot.data();
+                    const userName = getUserFriendlyName(docId);
+                    const activeStatus = docData.statusTag || "";
+
+                    let tagClass = "status-tag";
+                    if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
+                    else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
+                    else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
+                    else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
+                    else if (activeStatus !== "") tagClass += " custom";
+
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'user-item';
+                    itemDiv.id = `inbox-item-${docId}`;
+
+                    itemDiv.innerHTML = `
+                        <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
+                            <div class="user-avatar">🎓</div>
+                            <div class="user-details">
+                                <div class="user-phone">${userName}</div>
+                                <div class="user-subtitle">ID: ${docId.substring(0, 15)}...</div>
+                            </div>
+                            <div id="badge-${docId}" class="unread-badge" style="display: none;">0</div>
+                        </div>
+                        <div class="status-container">
+                            ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px; color:#aaa;">No tag</span>'}
+                            <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
+                                <option value="" disabled selected>Assign status...</option>
+                                <option value="Payment Pending">Payment Pending</option>
+                                <option value="Plan 1">Plan 1</option>
+                                <option value="Plan 2">Plan 2</option>
+                                <option value="Completed">Completed</option>
+                                <option value="custom">✍️ Custom Status...</option>
+                            </select>
+                            ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
+                        </div>
+                    `;
+                    userListDiv.appendChild(itemDiv);
+
+                    // Unread count
+                    db.collection('group_messages')
+                        .doc(docId)
+                        .collection('messages')
+                        .where('sender', '==', 'user')
+                        .where('status', '!=', 'read')
+                        .onSnapshot((msgSnapshot) => {
+                            const unreadCount = msgSnapshot.size;
+                            const badge = document.getElementById(`badge-${docId}`);
+                            if (badge) {
+                                if (unreadCount > 0) {
+                                    badge.innerText = unreadCount;
+                                    badge.style.display = 'flex';
+                                } else {
+                                    badge.style.display = 'none';
+                                }
+                            }
+                        });
+                });
+            });
+    } catch (error) {
+        console.error("Error loading inbox: ", error);
+        userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: red;'>Failed to load chats.</div>";
+    }
+}
+
+window.goBackToInbox = function() {
+    loadInbox();
+};
+
+// ==========================================
+// 🔥 RENDER MESSAGE
+// ==========================================
+function renderMessage(id, sender, type, content, timeStr, status) {
+    const msgDiv = document.createElement('div');
+    const isMe = sender === 'admin';
+    msgDiv.classList.add('msg', isMe ? 'sent-by-me' : 'received-by-me');
+
+    if (!content) return;
+
+    if (type === 'text') {
+        const textNode = document.createElement('span');
+        textNode.innerText = content;
+        msgDiv.appendChild(textNode);
+    } else if (type === 'image') {
+        const img = document.createElement('img');
+        img.src = content;
+        img.alt = "Image";
+        img.onload = () => { chatBox.scrollTop = chatBox.scrollHeight; };
+        img.addEventListener('click', () => openMediaLightbox('image', content));
+        msgDiv.appendChild(img);
+    } else if (type === 'video') {
+        const wrapper = document.createElement('div');
+        wrapper.className = 'video-thumb';
+        const video = document.createElement('video');
+        video.src = content;
+        video.preload = "metadata";
+        video.muted = true;
+        const playOverlay = document.createElement('div');
+        playOverlay.className = 'play-overlay';
+        playOverlay.innerText = '▶';
+        wrapper.appendChild(video);
+        wrapper.appendChild(playOverlay);
+        wrapper.addEventListener('click', () => openMediaLightbox('video', content));
+        msgDiv.appendChild(wrapper);
+    } else if (type === 'audio') {
+        const audio = document.createElement('audio');
+        audio.src = content;
+        audio.controls = true;
+        audio.preload = "auto";
+        msgDiv.appendChild(audio);
+    }
+
+    let ticksHtml = '';
+    if (isMe) {
+        if (status === 'sent') ticksHtml = '<span class="tick sent">✓</span>';
+        else if (status === 'delivered') ticksHtml = '<span class="tick delivered">✓✓</span>';
+        else if (status === 'read') ticksHtml = '<span class="tick read">✓✓</span>';
+        else ticksHtml = '<span class="tick sent">✓</span>';
+    }
+
+    const metaDiv = document.createElement('div');
+    metaDiv.classList.add('msg-meta');
+    metaDiv.innerHTML = `<span>${timeStr || ''}</span> ${ticksHtml}`;
+    msgDiv.appendChild(metaDiv);
+
+    chatBox.appendChild(msgDiv);
+}
+
+// ==========================================
+// 🔥 MEDIA LIGHTBOX
+// ==========================================
+function openMediaLightbox(type, src) {
+    const lightbox = document.getElementById('mediaLightbox');
+    const content = document.getElementById('mediaLightboxContent');
+    content.innerHTML = '';
+    if (type === 'image') {
+        const img = document.createElement('img');
+        img.src = src;
+        content.appendChild(img);
+    } else if (type === 'video') {
+        const video = document.createElement('video');
+        video.src = src;
+        video.controls = true;
+        video.autoplay = true;
+        content.appendChild(video);
+    }
+    lightbox.style.display = 'flex';
+}
+
+function closeMediaLightbox() {
+    document.getElementById('mediaLightbox').style.display = 'none';
+    document.getElementById('mediaLightboxContent').innerHTML = '';
+}
+
+document.getElementById('mediaLightboxCloseBtn')?.addEventListener('click', closeMediaLightbox);
+document.getElementById('mediaLightbox')?.addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) closeMediaLightbox();
+});
+
+// ==========================================
+// 🔥 GET FORMATTED TIME
+// ==========================================
+function getFormattedTime() {
+    const now = new Date();
+    let hours = now.getHours(); let minutes = now.getMinutes();
+    const ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12; hours = hours ? hours : 12;
+    minutes = minutes < 10 ? '0'+minutes : minutes;
+    return hours + ':' + minutes + ' ' + ampm;
+}
+
+// ==========================================
+// 🔥 SEND FCM NOTIFICATION
+// ==========================================
+async function sendFCMNotification(chatId, messageText) {
+    try {
+        // Student ka FCM token Firestore se lein
+        const tokenDoc = await db.collection('fcm_tokens').doc(chatId).get();
+        if (!tokenDoc.exists) {
+            console.log('❌ Student FCM token not found');
+            return;
+        }
+        
+        const fcmToken = tokenDoc.data().token;
+        
+        // 🔥 FCM API Call
+        const response = await fetch('https://fcm.googleapis.com/v1/projects/newpro-affc8/messages:send', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer YOUR_ACCESS_TOKEN' // 🔥 Firebase Console se lein
+            },
+            body: JSON.stringify({
+                message: {
+                    token: fcmToken,
+                    notification: {
+                        title: '📩 Teach Hub Support',
+                        body: `Admin: ${messageText}`
+                    },
+                    webpush: {
+                        headers: {
+                            'TTL': '604800' // 7 din tak store
+                        },
+                        fcm_options: {
+                            link: window.location.href
+                        }
+                    },
+                    android: {
+                        priority: 'high',
+                        ttl: '604800s'
+                    }
+                }
+            })
+        });
+        const result = await response.json();
+        console.log('✅ FCM notification sent:', result);
+    } catch (e) {
+        console.log('❌ FCM notification failed:', e);
+    }
+}
+
+// ==========================================
+// 🔥 SEND MESSAGE TO FIREBASE
+// ==========================================
+async function sendMessageToFirebase(type, content) {
+    if (!activeDocId) return;
+    const timestamp = Date.now();
+    const messageData = {
+        sender: "admin",
+        type: type,
+        time_now: timestamp,
+        time_label: getFormattedTime(),
+        status: "sent",
+        file_url: type !== 'text' ? content : "",
+        message_text: type === 'text' ? content : `Sent a ${type}`
+    };
+
+    // 1. Message Firestore mein save karein
+    await db.collection('group_messages').doc(activeDocId).collection('messages').add(messageData);
+    await db.collection('group_messages').doc(activeDocId).set({ lastUpdated: timestamp }, { merge: true });
+
+    // 2. 🔥 FCM Notification Send (Offline Support)
+    await sendFCMNotification(activeDocId, messageData.message_text);
+}
+
+// ==========================================
+// 🔥 EVENT LISTENERS
+// ==========================================
+sendBtn.addEventListener('click', () => {
+    const t = msgInput.value.trim();
+    if (t) {
+        msgInput.value = "";
+        sendMessageToFirebase('text', t);
+    }
+});
+
+msgInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+        const t = msgInput.value.trim();
+        if (t) {
+            msgInput.value = "";
+            sendMessageToFirebase('text', t);
+        }
+    }
+});
+
+const toBase64 = file => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+});
+
+mediaInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (file.size > 1548576) {
+        alert("File size limit is 1.5MB.");
+        return;
+    }
+    let fileType = file.type.startsWith('image/') ? 'image' :
+                   file.type.startsWith('video/') ? 'video' :
+                   file.type.startsWith('audio/') ? 'audio' : 'text';
+    const base64 = await toBase64(file);
+    sendMessageToFirebase(fileType, base64);
+});
+
+voiceBtn.addEventListener('click', async () => {
+    if (!isRecording) {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+            mediaRecorder.onstop = async () => {
+                const blob = new Blob(audioChunks, { type: 'audio/mp3' });
+                const base64 = await toBase64(blob);
+                sendMessageToFirebase('audio', base64);
+            };
+            mediaRecorder.start();
+            isRecording = true;
+            voiceBtn.classList.add('recording');
+            voiceBtn.innerText = "🛑";
+        }
+    } else {
+        mediaRecorder.stop();
+        isRecording = false;
+        voiceBtn.classList.remove('recording');
+        voiceBtn.innerText = "🎙️";
+    }
+});
+
+// ==========================================
+// 🔥 START
+// ==========================================
+loadInbox();
+</script>
 </body>
 </html>
