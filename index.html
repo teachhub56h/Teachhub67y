@@ -23,9 +23,18 @@
         }
         .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #f5f7f8; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
 
-        .chat-header { background: #1B4F72; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-wrap: wrap; }
+        .chat-header { 
+            background: #1B4F72; 
+            color: white; 
+            padding: 12px 16px; 
+            display: flex; 
+            align-items: center; 
+            gap: 8px; 
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
+            flex-wrap: wrap; 
+        }
         .profile-img { width: 40px; height: 40px; border-radius: 12px; background: #ffffff; object-fit: contain; padding: 3px; }
-        .header-info { flex: 1; min-width: 100px; }
+        .header-info { flex: 1; min-width: 80px; }
         .header-info .name { font-size: 16px; font-weight: 600; }
         .header-info .status { font-size: 11px; color: #a9c6dd; }
         .header-btn { 
@@ -40,8 +49,10 @@
             display: inline-block; 
             white-space: nowrap;
         }
-        .header-btn.green { background: #43a047; color: white; }
+        .header-btn.green { background: #43a047; color: white; cursor: default; }
         .header-btn.gray { background: #8696a0; color: white; cursor: default; }
+        .header-btn:disabled { opacity: 0.7; cursor: default; }
+        
         .install-help-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 999; align-items: center; justify-content: center; padding: 20px; }
         .install-help-box { background: #fff; border-radius: 12px; padding: 20px; max-width: 340px; text-align: center; color: #16232e; font-size: 14px; line-height: 1.5; }
         .install-help-box b { color: #1B4F72; }
@@ -122,7 +133,6 @@
         let currentSender = "user";
         let mediaRecorder, audioChunks = [], isRecording = false;
 
-        // 🔥 STUDENT UNIQUE ID
         let myChatDocId = localStorage.getItem('my_chat_session_id');
         if (!myChatDocId) {
             myChatDocId = "user_" + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
@@ -135,7 +145,6 @@
         window.addEventListener('focus', () => { isWindowActive = true; });
         window.addEventListener('blur', () => { isWindowActive = false; });
 
-        // 🔥 INCOMING MESSAGE SOUND
         const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
 
         function loadChatSession() {
@@ -164,7 +173,6 @@
                     renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
                 });
 
-                // 🔥 PLAY SOUND IF NEW MESSAGE FROM ADMIN
                 if (hasNewMessage && !isWindowActive) {
                     msgSound.play().catch(e => console.log('Audio blocked'));
                 }
@@ -331,14 +339,14 @@
         // 🔔 NOTIFICATION SETUP (Student Side)
         // ==========================================
 
-        // 🔥 Service Worker registration
+        // Service Worker registration
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
                 .then(reg => console.log('✅ SW registered:', reg))
                 .catch(err => console.log('❌ SW failed:', err));
         }
 
-        // 🔥 OneSignal Initialization
+        // OneSignal Initialization
         window.OneSignalDeferred = window.OneSignalDeferred || [];
         OneSignalDeferred.push(async function(OneSignal) {
             await OneSignal.init({
@@ -358,12 +366,12 @@
             updateNotifStatus();
         });
 
-        // 🔥 Enable Notification Button
+        // Enable Notification Button
         document.addEventListener('DOMContentLoaded', function() {
             const notifBtn = document.getElementById('notifBtn');
             const notifStatus = document.getElementById('notifStatus');
             
-            // Check agar already allowed hai toh button hide kar do
+            // Check if already allowed
             if ('Notification' in window && Notification.permission === 'granted') {
                 if (notifBtn) {
                     notifBtn.textContent = '✅ Enabled';
@@ -374,6 +382,15 @@
                     notifStatus.textContent = '🔔 Notifications On';
                     notifStatus.style.color = '#a9c6dd';
                 }
+                // Test notification with sound
+                setTimeout(() => {
+                    new Notification('🔔 Teach Hub', {
+                        body: 'Notifications are active! You will receive messages from Admin.',
+                        icon: '/logo-192.png',
+                        sound: 'notification.mp3',
+                        vibrate: [200, 100, 200]
+                    });
+                }, 1000);
             }
             
             if (notifBtn) {
@@ -388,12 +405,19 @@
                                 notifStatus.textContent = '🔔 Notifications On';
                                 notifStatus.style.color = '#a9c6dd';
                             }
-                            // OneSignal ko tag update karein
+                            // OneSignal tag update
                             if (window.__oneSignal) {
                                 const chatId = localStorage.getItem('my_chat_session_id');
                                 await window.__oneSignal.User.addTag("chat_id", chatId);
                             }
-                            alert('✅ Notifications Enabled! You will receive messages from Admin.');
+                            // 🔥 Test notification with SOUND
+                            new Notification('🔔 Teach Hub', {
+                                body: '✅ Notifications enabled! You will receive messages from Admin.',
+                                icon: '/logo-192.png',
+                                sound: 'notification.mp3',
+                                vibrate: [200, 100, 200]
+                            });
+                            alert('✅ Notifications Enabled!');
                         } else if (permission === 'denied') {
                             alert('❌ Notifications blocked. Please enable from browser settings.');
                         } else {
@@ -418,7 +442,7 @@
             }
         }
 
-        // 🔥 Install button logic
+        // Install button logic
         document.addEventListener('DOMContentLoaded', () => {
             let deferredPrompt;
             const installBtn = document.getElementById('installBtn');
@@ -456,9 +480,7 @@
 </head>
 <body>
 <div class="chat-container">
-    <!-- ========================================== -->
-    <!-- 🔥 HEADER WITH NOTIFICATION BUTTON          -->
-    <!-- ========================================== -->
+    <!-- 🔥 HEADER WITH NOTIFICATION BUTTON -->
     <div class="chat-header">
         <img class="profile-img" src="logo-192.png" alt="Teach Hub">
         <div class="header-info">
@@ -466,13 +488,11 @@
             <div class="status" id="notifStatus">🔔 Notifications Off</div>
         </div>
         <button id="notifBtn" class="header-btn">🔔 Enable</button>
-        <button class="header-btn" id="installBtn">📲 Install</button>
+        <button class="header-btn" id="installBtn" style="background:#43a047; color:white;">📲 Install</button>
     </div>
 
-    <!-- Chat Messages -->
     <div class="chat-messages" id="chatBox"></div>
 
-    <!-- Input Area -->
     <div class="chat-input-area">
         <div class="input-container">
             <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
@@ -484,7 +504,6 @@
     </div>
 </div>
 
-<!-- Install Help Overlay -->
 <div class="install-help-overlay" id="installHelpOverlay">
     <div class="install-help-box">
         <p>To install this app on your home screen:</p>
@@ -493,7 +512,6 @@
     </div>
 </div>
 
-<!-- Media Lightbox -->
 <div class="media-lightbox" id="mediaLightbox">
     <button class="media-lightbox-close" id="mediaLightboxCloseBtn">✕</button>
     <div id="mediaLightboxContent"></div>
