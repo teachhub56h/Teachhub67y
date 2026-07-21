@@ -472,7 +472,7 @@
             return hours + ':' + minutes + ' ' + ampm;
         }
 
-        // 🔥 OneSignal Notification Send
+        // 🔥 OneSignal Notification Send with Sound + Vibration
         async function sendOneSignalNotification(chatId, messageText) {
             try {
                 const ONESIGNAL_APP_ID = "145bd2e8-5575-4d15-8c2d-ad8fb62251cb";
@@ -498,8 +498,15 @@
                             en: "📩 Teach Hub Support" 
                         },
                         contents: { 
-                            en: `New message from Admin: ${messageText}` 
+                            en: `Admin: ${messageText}` 
                         },
+                        // 🔥 SOUND + VIBRATION ADDED
+                        "ios_sound": "notification.wav",
+                        "android_sound": "notification",
+                        "android_led_color": "FF0000FF",
+                        "android_accent_color": "FF1B4F72",
+                        "priority": 10,
+                        "vibrate": [200, 100, 200],
                         web_buttons: [
                             { 
                                 id: "open", 
@@ -510,7 +517,7 @@
                     })
                 });
                 const result = await response.json();
-                console.log('✅ OneSignal notification sent:', result);
+                console.log('✅ OneSignal notification sent with sound:', result);
             } catch (e) {
                 console.log('❌ OneSignal notification failed:', e);
             }
@@ -531,7 +538,7 @@
 
             await addDoc(collection(db, "group_messages", activeDocId, "messages"), messageData);
             
-            // 🔥 OneSignal Notification
+            // 🔥 OneSignal Notification with Sound
             await sendOneSignalNotification(activeDocId, messageData.message_text);
             
             updateDoc(doc(db, "group_messages", activeDocId), { lastUpdated: timestamp }).catch(() => {});
