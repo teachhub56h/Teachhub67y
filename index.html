@@ -11,6 +11,9 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <meta name="apple-mobile-web-app-title" content="Teach Hub">
     <meta name="theme-color" content="#1B4F72">
+    
+    <!-- OneSignal SDK -->
+    <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
@@ -79,6 +82,52 @@
         .icon-btn.recording { color: #ea0038; animation: blink 1s infinite; }
         .send-btn { background: #1B4F72; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+        /* 🔥 NOTIFICATION POPUP */
+        #notifPopup {
+            display: none;
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #1B4F72;
+            color: white;
+            padding: 15px 20px;
+            border-radius: 12px;
+            z-index: 999;
+            width: 90%;
+            max-width: 400px;
+            text-align: center;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        }
+        #notifPopup p { margin-bottom: 12px; font-size: 14px; }
+        #enableNotifBtn {
+            background: #F4B400;
+            color: #1B4F72;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 20px;
+            font-weight: bold;
+            font-size: 14px;
+            cursor: pointer;
+            margin-right: 10px;
+        }
+        #notifLaterBtn {
+            background: transparent;
+            color: #a9c6dd;
+            border: none;
+            padding: 10px 15px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .notif-status {
+            font-size: 12px;
+            padding: 4px 10px;
+            border-radius: 12px;
+            display: inline-block;
+        }
+        .notif-status.enabled { background: #43a047; color: white; }
+        .notif-status.disabled { background: #e53935; color: white; }
     </style>
 
     <script type="module">
@@ -113,29 +162,6 @@
         }
         window.myChatDocId = myChatDocId;
 
-        // 🔥 STUDENT KA UNIQUE TOPIC
-        const studentTopic = "student_" + myChatDocId;
-        console.log('📢 Student Topic:', studentTopic);
-
-        // 🔥 NTFY SUBSCRIBE (Automatically)
-        async function subscribeToNtfy() {
-            try {
-                // Check if already subscribed
-                const check = await fetch(`https://ntfy.sh/${studentTopic}/json`);
-                if (!check.ok) {
-                    await fetch(`https://ntfy.sh/${studentTopic}/subscribe`, {
-                        method: 'POST'
-                    });
-                    console.log('✅ Subscribed to:', studentTopic);
-                } else {
-                    console.log('✅ Already subscribed to:', studentTopic);
-                }
-            } catch (e) {
-                console.log('❌ Subscribe failed:', e);
-            }
-        }
-        subscribeToNtfy();
-
         let isWindowActive = true;
         window.addEventListener('focus', () => { isWindowActive = true; });
         window.addEventListener('blur', () => { isWindowActive = false; });
@@ -169,7 +195,6 @@
                     renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
                 });
 
-                // 🔥 PLAY SOUND IF NEW MESSAGE FROM ADMIN
                 if (hasNewMessage && !isWindowActive) {
                     msgSound.play().catch(e => console.log('Audio blocked'));
                 }
@@ -332,18 +357,100 @@
     </script>
 
     <script>
-        // Service Worker registration
+        // 🔥 Service Worker registration
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
                 .then(reg => console.log('✅ SW registered:', reg))
                 .catch(err => console.log('❌ SW failed:', err));
         }
 
-        // Notification Permission
-        if ('Notification' in window) {
-            Notification.requestPermission().then(permission => {
-                console.log('📢 Notification permission:', permission);
+        // 🔥 OneSignal Initialization
+        window.OneSignalDeferred = window.OneSignalDeferred || [];
+        OneSignalDeferred.push(async function(OneSignal) {
+            await OneSignal.init({
+                appId: "145bd2e8-5575-4d15-8c2d-ad8fb62251cb",
+                serviceWorkerParam: { scope: "./" },
+                serviceWorkerPath: "sw.js"
             });
+            
+            const myChatDocId = localStorage.getItem('my_chat_session_id');
+            if (myChatDocId) {
+                await OneSignal.User.addTag("chat_id", myChatDocId);
+                console.log('✅ OneSignal tag added for student:', myChatDocId);
+            }
+            
+            window.__oneSignal = OneSignal;
+            window.dispatchEvent(new Event('oneSignalReady'));
+            updateNotifStatus();
+        });
+
+        // 🔥 Notification Popup
+        document.addEventListener('DOMContentLoaded', () => {
+            const notifPopup = document.getElementById('notifPopup');
+            const enableBtn = document.getElementById('enableNotifBtn');
+            const laterBtn = document.getElementById('notifLaterBtn');
+            const notifStatus = document.getElementById('notifStatus');
+            
+            // Check permission
+            if ('Notification' in window && Notification.permission === 'granted') {
+                notifPopup.style.display = 'none';
+                if (notifStatus) {
+                    notifStatus.textContent = '✅ Notifications Enabled';
+                    notifStatus.className = 'notif-status enabled';
+                }
+                return;
+            }
+            
+            if (Notification.permission === 'default') {
+                notifPopup.style.display = 'block';
+            }
+            
+            if (Notification.permission === 'denied') {
+                notifPopup.style.display = 'none';
+                if (notifStatus) {
+                    notifStatus.textContent = '❌ Notifications Blocked';
+                    notifStatus.className = 'notif-status disabled';
+                }
+            }
+            
+            // Enable button
+            enableBtn.addEventListener('click', async () => {
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    notifPopup.style.display = 'none';
+                    if (notifStatus) {
+                        notifStatus.textContent = '✅ Notifications Enabled';
+                        notifStatus.className = 'notif-status enabled';
+                    }
+                    // OneSignal tag update
+                    if (window.__oneSignal) {
+                        const myChatDocId = localStorage.getItem('my_chat_session_id');
+                        await window.__oneSignal.User.addTag("chat_id", myChatDocId);
+                    }
+                    alert('✅ Notifications enabled! You will receive messages from Admin.');
+                } else {
+                    alert('❌ Please allow notifications to receive messages.');
+                }
+            });
+            
+            laterBtn.addEventListener('click', () => {
+                notifPopup.style.display = 'none';
+            });
+        });
+
+        function updateNotifStatus() {
+            const notifStatus = document.getElementById('notifStatus');
+            if (!notifStatus) return;
+            if ('Notification' in window && Notification.permission === 'granted') {
+                notifStatus.textContent = '✅ Notifications Enabled';
+                notifStatus.className = 'notif-status enabled';
+            } else if (Notification.permission === 'denied') {
+                notifStatus.textContent = '❌ Notifications Blocked';
+                notifStatus.className = 'notif-status disabled';
+            } else {
+                notifStatus.textContent = '⏳ Notifications Pending';
+                notifStatus.className = 'notif-status';
+            }
         }
 
         // Install button logic
@@ -388,7 +495,9 @@
         <img class="profile-img" src="logo-192.png" alt="Teach Hub">
         <div class="header-info">
             <div class="name">Teach Hub Support</div>
-            <div class="status">Student Chat</div>
+            <div class="status">
+                <span id="notifStatus" class="notif-status">⏳ Checking...</span>
+            </div>
         </div>
         <button class="install-btn" id="installBtn">📲 Install App</button>
     </div>
@@ -404,6 +513,13 @@
         </div>
         <button class="send-btn" id="sendBtn">➤</button>
     </div>
+</div>
+
+<!-- 🔥 NOTIFICATION POPUP -->
+<div id="notifPopup">
+    <p>🔔 Enable notifications to get instant replies from Admin!</p>
+    <button id="enableNotifBtn">✅ Enable Notifications</button>
+    <button id="notifLaterBtn">Later</button>
 </div>
 
 <div class="install-help-overlay" id="installHelpOverlay">
