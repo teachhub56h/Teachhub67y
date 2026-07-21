@@ -13,7 +13,6 @@
         }
         .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #f5f7f8; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
 
-        /* INBOX VIEW */
         #inbox-view { display: flex; flex-direction: column; height: 100%; background: #ffffff; }
         .inbox-header { background: #1B4F72; color: white; padding: 16px; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
         .inbox-header img { width: 26px; height: 26px; }
@@ -34,7 +33,6 @@
         .user-phone { font-size: 15px; font-weight: 600; color: #16232e; }
         .user-subtitle { font-size: 12px; color: #6b7a85; margin-top: 2px; }
 
-        /* STATUS TAGS */
         .status-container {
             display: flex;
             align-items: center;
@@ -91,7 +89,6 @@
             padding: 0 5px;
         }
 
-        /* CHAT VIEW */
         #chat-view { display: none; flex-direction: column; height: 100%; }
         .chat-header { background: #123a56; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .back-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; }
@@ -134,7 +131,6 @@
         .tick.delivered { color: #8696a0; }
         .tick.read { color: #1B84D8; }
 
-        /* INPUT AREA */
         .chat-input-area { padding: 10px; background: #e4e9ec; display: flex; align-items: center; gap: 8px; }
         .input-container { flex: 1; background: #fff; border-radius: 24px; display: flex; align-items: center; padding: 2px 12px; }
         .input-container input[type="text"] { flex: 1; border: none; outline: none; padding: 10px 4px; font-size: 15px; background: transparent; }
@@ -166,9 +162,6 @@
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
-        // Incoming message alert
-        const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
-
         const inboxView = document.getElementById('inbox-view');
         const chatView = document.getElementById('chat-view');
         const userListDiv = document.getElementById('userList');
@@ -187,6 +180,9 @@
         let isWindowActive = true;
         window.addEventListener('focus', () => { isWindowActive = true; });
         window.addEventListener('blur', () => { isWindowActive = false; });
+
+        // 🔥 Incoming message sound
+        const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
 
         function getUserFriendlyName(docId) {
             let savedNames = localStorage.getItem('chatUserNames');
@@ -476,21 +472,47 @@
             return hours + ':' + minutes + ' ' + ampm;
         }
 
-        const CLOUDFLARE_WORKER_URL = "https://teachhub-notify.github567h.workers.dev";
-
-        async function sendPushNotification(chatId, messageText) {
+        // 🔥 OneSignal Notification Send
+        async function sendOneSignalNotification(chatId, messageText) {
             try {
-                await fetch(CLOUDFLARE_WORKER_URL, {
+                const ONESIGNAL_APP_ID = "145bd2e8-5575-4d15-8c2d-ad8fb62251cb";
+                const ONESIGNAL_API_KEY = "vc1g15hfyezwcnct2wbkygorp";
+                
+                const response = await fetch("https://onesignal.com/api/v1/notifications", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: {
+                        "Content-Type": "application/json",
+                        "Authorization": `Basic ${ONESIGNAL_API_KEY}`
+                    },
                     body: JSON.stringify({
-                        chat_id: chatId,
-                        title: "Teach Hub Support",
-                        message: messageText
+                        app_id: ONESIGNAL_APP_ID,
+                        filters: [
+                            { 
+                                field: "tag", 
+                                key: "chat_id", 
+                                relation: "=", 
+                                value: chatId 
+                            }
+                        ],
+                        headings: { 
+                            en: "📩 Teach Hub Support" 
+                        },
+                        contents: { 
+                            en: `New message from Admin: ${messageText}` 
+                        },
+                        web_buttons: [
+                            { 
+                                id: "open", 
+                                text: "📩 Open Chat", 
+                                url: window.location.href 
+                            }
+                        ]
                     })
                 });
+                const result = await response.json();
+                console.log('✅ OneSignal notification sent:', result);
             } catch (e) {
-                console.log("Push notification failed to send:", e);
+                console.log('❌ OneSignal notification failed:', e);
             }
         }
 
@@ -508,7 +530,10 @@
             };
 
             await addDoc(collection(db, "group_messages", activeDocId, "messages"), messageData);
-            sendPushNotification(activeDocId, messageData.message_text);
+            
+            // 🔥 OneSignal Notification
+            await sendOneSignalNotification(activeDocId, messageData.message_text);
+            
             updateDoc(doc(db, "group_messages", activeDocId), { lastUpdated: timestamp }).catch(() => {});
         }
 
