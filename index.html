@@ -83,6 +83,24 @@
         .icon-btn.recording { color: #ea0038; animation: blink 1s infinite; }
         .send-btn { background: #1B4F72; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+        /* 🔥 NEW: Incoming message ringtone alert */
+        .notif-badge {
+            background: #e53935;
+            color: white;
+            font-size: 11px;
+            font-weight: bold;
+            min-width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 0 5px;
+            position: absolute;
+            top: -5px;
+            right: -5px;
+        }
     </style>
 
     <script type="module">
@@ -121,6 +139,9 @@
         window.addEventListener('focus', () => { isWindowActive = true; updateAppBadge(0); });
         window.addEventListener('blur', () => { isWindowActive = false; });
 
+        // 🔥 Incoming message sound
+        const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
+
         function updateAppBadge(count) {
             try {
                 if (count > 0 && 'setAppBadge' in navigator) {
@@ -138,11 +159,16 @@
             onSnapshot(q, (snapshot) => {
                 chatBox.innerHTML = "";
                 let unreadCount = 0;
+                let hasNewIncomingMsg = false;
+
                 snapshot.forEach((snapshotDoc) => {
                     const data = snapshotDoc.data();
 
                     if (data.sender === 'admin') {
-                        if (data.status !== 'read') unreadCount++;
+                        if (data.status !== 'read') {
+                            unreadCount++;
+                            hasNewIncomingMsg = true;
+                        }
                         const docRef = doc(db, "group_messages", myChatDocId, "messages", snapshotDoc.id);
                         if (isWindowActive && data.status !== 'read') {
                             updateDoc(docRef, { status: 'read' });
@@ -155,6 +181,14 @@
                     const messageContent = data.file_url || data.content || data.message_text;
                     renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
                 });
+
+                // 🔥 Play sound if new message from admin
+                if (hasNewIncomingMsg && !isWindowActive) {
+                    msgSound.play().catch(e => {
+                        console.log("Audio autoplay blocked. User needs to interact first.");
+                    });
+                }
+
                 chatBox.scrollTop = chatBox.scrollHeight;
                 updateAppBadge(isWindowActive ? 0 : unreadCount);
             });
@@ -317,14 +351,26 @@
     </script>
 
     <script>
-      // Service Worker registration (enables offline + installability)
+      // 🔥 Service Worker registration
       if ('serviceWorker' in navigator) {
-        navigator.serviceWorker.register('sw.js');
+        navigator.serviceWorker.register('sw.js')
+            .then(reg => console.log('✅ SW registered:', reg))
+            .catch(err => console.log('❌ SW failed:', err));
       }
 
-      // OneSignal push notifications: initialize and tag this device with
-      // the student's unique chat ID, so messages can be targeted to them
-      // specifically (not broadcast to every student).
+      // 🔔 Request Notification Permission
+      if ('Notification' in window) {
+        Notification.requestPermission().then(permission => {
+            console.log('📢 Notification permission:', permission);
+            if (permission === 'granted') {
+                console.log('✅ Notifications allowed!');
+            } else {
+                console.log('❌ Notifications blocked!');
+            }
+        });
+      }
+
+      // 🔥 OneSignal Push Notifications
       window.OneSignalDeferred = window.OneSignalDeferred || [];
       OneSignalDeferred.push(async function (OneSignal) {
         await OneSignal.init({
@@ -334,8 +380,9 @@
         });
         try {
           await OneSignal.User.addTag("chat_id", window.myChatDocId);
+          console.log('✅ OneSignal tag added: chat_id =', window.myChatDocId);
         } catch (e) {
-          console.log("Could not tag OneSignal user yet:", e);
+          console.log("❌ Could not tag OneSignal user:", e);
         }
         window.__oneSignal = OneSignal;
         window.dispatchEvent(new Event('oneSignalReady'));
@@ -368,8 +415,7 @@
         });
       }
 
-      // Wait until the full page (including the button below) has loaded
-      // before attaching any install-button logic.
+      // Install button logic
       document.addEventListener('DOMContentLoaded', () => {
         let deferredPrompt;
         const installBtn = document.getElementById('installBtn');
