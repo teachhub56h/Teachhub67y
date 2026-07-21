@@ -153,7 +153,7 @@
 
 <script>
 // ==========================================
-// 🔥 FIREBASE CONFIG (Aapki Config)
+// 🔥 FIREBASE CONFIG
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
@@ -164,7 +164,6 @@ const firebaseConfig = {
     appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
 };
 
-// Initialize Firebase
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 const messaging = firebase.messaging();
@@ -181,25 +180,27 @@ window.myChatDocId = myChatDocId;
 console.log('📢 Your Chat ID:', myChatDocId);
 
 // ==========================================
+// 🔥 VAPID KEY (Aapki VAPID Key)
+// ==========================================
+const VAPID_KEY = "BNo0ByAGSSl8A_YGrMG_TUbpOUIIPrpQ-LsLRd11MwqX6bKquJWZUU-W1oLimx94D5EMyJYSk9vDnkqhsdIRqno";
+
+// ==========================================
 // 🔥 FCM TOKEN REGISTER
 // ==========================================
 async function registerFCM() {
     try {
-        // Service Worker register karein
         const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
             scope: '/'
         });
         console.log('✅ SW registered');
 
-        // FCM Token lein
         const token = await messaging.getToken({
             serviceWorkerRegistration: registration,
-            vapidKey: "BM9Yp9bNp_4q3AQlFMSbJz7QlqQIkJjTmL3CZWbGWVsCOdLKQ4GVW0WvKdRrjVpWJyDk5rjVpWJyDk5rjVpWJyDk" // 🔥 APNI VAPID KEY DAALEIN
+            vapidKey: VAPID_KEY
         });
         
         console.log('✅ FCM Token:', token);
         
-        // Token Firebase Firestore mein save karein
         await db.collection('fcm_tokens').doc(myChatDocId).set({
             token: token,
             chatId: myChatDocId,
@@ -221,7 +222,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const notifBtn = document.getElementById('notifBtn');
     const notifStatus = document.getElementById('notifStatus');
     
-    // Check permission
     if ('Notification' in window && Notification.permission === 'granted') {
         notifBtn.textContent = '✅ Enabled';
         notifBtn.className = 'header-btn green';
@@ -288,7 +288,6 @@ function loadMessages() {
             });
             
             if (hasNew) {
-                // Play sound
                 new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav').play().catch(() => {});
             }
             chatBox.scrollTop = chatBox.scrollHeight;
@@ -367,7 +366,6 @@ function openMediaLightbox(type, src) {
     lightbox.style.display = 'flex';
 }
 
-// Close lightbox
 document.getElementById('mediaLightboxCloseBtn')?.addEventListener('click', () => {
     document.getElementById('mediaLightbox').style.display = 'none';
 });
@@ -417,7 +415,6 @@ document.getElementById('mediaInput').addEventListener('change', async (e) => {
     };
 });
 
-// Voice recording
 let mediaRecorder, audioChunks = [], isRecording = false;
 document.getElementById('voiceBtn').addEventListener('click', async () => {
     if (!isRecording) {
@@ -479,7 +476,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 loadMessages();
 
-// Agar permission already granted hai toh register karein
 if ('Notification' in window && Notification.permission === 'granted') {
     registerFCM();
 }
