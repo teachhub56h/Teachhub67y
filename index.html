@@ -12,7 +12,6 @@
     <meta name="apple-mobile-web-app-title" content="Teach Hub">
     <meta name="theme-color" content="#1B4F72">
     
-    <!-- OneSignal SDK -->
     <script src="https://cdn.onesignal.com/sdks/web/v16/OneSignalSDK.page.js" defer></script>
 
     <style>
@@ -50,7 +49,6 @@
             white-space: nowrap;
         }
         .header-btn.green { background: #43a047; color: white; cursor: default; }
-        .header-btn.gray { background: #8696a0; color: white; cursor: default; }
         .header-btn:disabled { opacity: 0.7; cursor: default; }
         
         .install-help-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 999; align-items: center; justify-content: center; padding: 20px; }
@@ -339,14 +337,12 @@
         // 🔔 NOTIFICATION SETUP (Student Side)
         // ==========================================
 
-        // Service Worker registration
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
                 .then(reg => console.log('✅ SW registered:', reg))
                 .catch(err => console.log('❌ SW failed:', err));
         }
 
-        // OneSignal Initialization
         window.OneSignalDeferred = window.OneSignalDeferred || [];
         OneSignalDeferred.push(async function(OneSignal) {
             await OneSignal.init({
@@ -358,7 +354,7 @@
             const myChatDocId = localStorage.getItem('my_chat_session_id');
             if (myChatDocId) {
                 await OneSignal.User.addTag("chat_id", myChatDocId);
-                console.log('✅ OneSignal tag added for student:', myChatDocId);
+                console.log('✅ OneSignal tag added:', myChatDocId);
             }
             
             window.__oneSignal = OneSignal;
@@ -366,12 +362,21 @@
             updateNotifStatus();
         });
 
-        // Enable Notification Button
+        // 🔥 FORCE REGISTER (Auto-run after 3 seconds)
+        setTimeout(async function() {
+            if (window.OneSignal) {
+                const chatId = localStorage.getItem('my_chat_session_id');
+                if (chatId) {
+                    await OneSignal.User.addTag("chat_id", chatId);
+                    console.log('✅ Auto-registered:', chatId);
+                }
+            }
+        }, 3000);
+
         document.addEventListener('DOMContentLoaded', function() {
             const notifBtn = document.getElementById('notifBtn');
             const notifStatus = document.getElementById('notifStatus');
             
-            // Check if already allowed
             if ('Notification' in window && Notification.permission === 'granted') {
                 if (notifBtn) {
                     notifBtn.textContent = '✅ Enabled';
@@ -382,15 +387,6 @@
                     notifStatus.textContent = '🔔 Notifications On';
                     notifStatus.style.color = '#a9c6dd';
                 }
-                // Test notification with sound
-                setTimeout(() => {
-                    new Notification('🔔 Teach Hub', {
-                        body: 'Notifications are active! You will receive messages from Admin.',
-                        icon: '/logo-192.png',
-                        sound: 'notification.mp3',
-                        vibrate: [200, 100, 200]
-                    });
-                }, 1000);
             }
             
             if (notifBtn) {
@@ -405,16 +401,13 @@
                                 notifStatus.textContent = '🔔 Notifications On';
                                 notifStatus.style.color = '#a9c6dd';
                             }
-                            // OneSignal tag update
                             if (window.__oneSignal) {
                                 const chatId = localStorage.getItem('my_chat_session_id');
                                 await window.__oneSignal.User.addTag("chat_id", chatId);
                             }
-                            // 🔥 Test notification with SOUND
                             new Notification('🔔 Teach Hub', {
-                                body: '✅ Notifications enabled! You will receive messages from Admin.',
+                                body: '✅ Notifications enabled!',
                                 icon: '/logo-192.png',
-                                sound: 'notification.mp3',
                                 vibrate: [200, 100, 200]
                             });
                             alert('✅ Notifications Enabled!');
@@ -442,7 +435,6 @@
             }
         }
 
-        // Install button logic
         document.addEventListener('DOMContentLoaded', () => {
             let deferredPrompt;
             const installBtn = document.getElementById('installBtn');
@@ -480,7 +472,6 @@
 </head>
 <body>
 <div class="chat-container">
-    <!-- 🔥 HEADER WITH NOTIFICATION BUTTON -->
     <div class="chat-header">
         <img class="profile-img" src="logo-192.png" alt="Teach Hub">
         <div class="header-info">
