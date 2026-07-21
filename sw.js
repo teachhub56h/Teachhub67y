@@ -1,50 +1,33 @@
-// sw.js - Service Worker for Push Notifications
-const CACHE_NAME = 'teachhub-cache-v1';
+// firebase-messaging-sw.js
+importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js');
+importScripts('https://www.gstatic.com/firebasejs/10.13.2/firebase-messaging-compat.js');
 
-self.addEventListener('install', (event) => {
-    event.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            return cache.addAll([
-                '/',
-                '/index.html'
-            ]);
-        })
-    );
-});
+// 🔥 FIREBASE CONFIG
+const firebaseConfig = {
+    apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
+    authDomain: "newpro-affc8.firebaseapp.com",
+    projectId: "newpro-affc8",
+    storageBucket: "newpro-affc8.firebasestorage.app",
+    messagingSenderId: "1080341611919",
+    appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
+};
 
-self.addEventListener('activate', (event) => {
-    event.waitUntil(
-        caches.keys().then((cacheNames) => {
-            return Promise.all(
-                cacheNames.map((cacheName) => {
-                    if (cacheName !== CACHE_NAME) {
-                        return caches.delete(cacheName);
-                    }
-                })
-            );
-        })
-    );
-});
+firebase.initializeApp(firebaseConfig);
+const messaging = firebase.messaging();
 
-self.addEventListener('fetch', (event) => {
-    event.respondWith(
-        caches.match(event.request).then((response) => {
-            return response || fetch(event.request);
-        })
-    );
-});
-
-// PUSH NOTIFICATION HANDLER
-self.addEventListener('push', (event) => {
-    const data = event.data.json();
-    const options = {
-        body: data.message || 'New message from Admin',
+// 🔥 BACKGROUND MESSAGE HANDLER (OFFLINE SUPPORT)
+messaging.onBackgroundMessage((payload) => {
+    console.log('📩 Background message received:', payload);
+    
+    const notificationTitle = payload.notification?.title || '📩 Teach Hub Support';
+    const notificationOptions = {
+        body: payload.notification?.body || 'New message from Admin',
         icon: '/logo-192.png',
         badge: '/logo-192.png',
-        vibrate: [200, 100, 200],
+        vibrate: [200, 100, 200, 100, 400],
+        sound: 'notification.mp3',
         data: {
-            chatId: data.chatId || '',
-            url: data.url || '/'
+            url: payload.fcmOptions?.link || '/'
         },
         actions: [
             {
@@ -54,12 +37,10 @@ self.addEventListener('push', (event) => {
         ]
     };
 
-    event.waitUntil(
-        self.registration.showNotification(data.title || 'Teach Hub', options)
-    );
+    self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// NOTIFICATION CLICK HANDLER
+// 🔥 NOTIFICATION CLICK HANDLER
 self.addEventListener('notificationclick', (event) => {
     event.notification.close();
     const urlToOpen = event.notification.data?.url || '/';
