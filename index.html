@@ -23,12 +23,25 @@
         }
         .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #f5f7f8; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
 
-        .chat-header { background: #1B4F72; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .chat-header { background: #1B4F72; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-wrap: wrap; }
         .profile-img { width: 40px; height: 40px; border-radius: 12px; background: #ffffff; object-fit: contain; padding: 3px; }
-        .header-info { flex: 1; }
+        .header-info { flex: 1; min-width: 100px; }
         .header-info .name { font-size: 16px; font-weight: 600; }
-        .header-info .status { font-size: 12px; color: #a9c6dd; }
-        .install-btn { background: #F4B400; color: #1B4F72; border: none; padding: 6px 10px; border-radius: 14px; font-size: 12px; font-weight: 700; cursor: pointer; display: inline-block; }
+        .header-info .status { font-size: 11px; color: #a9c6dd; }
+        .header-btn { 
+            background: #F4B400; 
+            color: #1B4F72; 
+            border: none; 
+            padding: 5px 10px; 
+            border-radius: 14px; 
+            font-size: 11px; 
+            font-weight: 700; 
+            cursor: pointer; 
+            display: inline-block; 
+            white-space: nowrap;
+        }
+        .header-btn.green { background: #43a047; color: white; }
+        .header-btn.gray { background: #8696a0; color: white; cursor: default; }
         .install-help-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 999; align-items: center; justify-content: center; padding: 20px; }
         .install-help-box { background: #fff; border-radius: 12px; padding: 20px; max-width: 340px; text-align: center; color: #16232e; font-size: 14px; line-height: 1.5; }
         .install-help-box b { color: #1B4F72; }
@@ -82,52 +95,6 @@
         .icon-btn.recording { color: #ea0038; animation: blink 1s infinite; }
         .send-btn { background: #1B4F72; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
-
-        /* 🔥 NOTIFICATION POPUP */
-        #notifPopup {
-            display: none;
-            position: fixed;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background: #1B4F72;
-            color: white;
-            padding: 15px 20px;
-            border-radius: 12px;
-            z-index: 999;
-            width: 90%;
-            max-width: 400px;
-            text-align: center;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-        }
-        #notifPopup p { margin-bottom: 12px; font-size: 14px; }
-        #enableNotifBtn {
-            background: #F4B400;
-            color: #1B4F72;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 20px;
-            font-weight: bold;
-            font-size: 14px;
-            cursor: pointer;
-            margin-right: 10px;
-        }
-        #notifLaterBtn {
-            background: transparent;
-            color: #a9c6dd;
-            border: none;
-            padding: 10px 15px;
-            font-size: 12px;
-            cursor: pointer;
-        }
-        .notif-status {
-            font-size: 12px;
-            padding: 4px 10px;
-            border-radius: 12px;
-            display: inline-block;
-        }
-        .notif-status.enabled { background: #43a047; color: white; }
-        .notif-status.disabled { background: #e53935; color: white; }
     </style>
 
     <script type="module">
@@ -155,12 +122,14 @@
         let currentSender = "user";
         let mediaRecorder, audioChunks = [], isRecording = false;
 
+        // 🔥 STUDENT UNIQUE ID
         let myChatDocId = localStorage.getItem('my_chat_session_id');
         if (!myChatDocId) {
             myChatDocId = "user_" + Math.random().toString(36).substring(2, 15) + Date.now().toString(36);
             localStorage.setItem('my_chat_session_id', myChatDocId);
         }
         window.myChatDocId = myChatDocId;
+        console.log('📢 Your Chat ID:', myChatDocId);
 
         let isWindowActive = true;
         window.addEventListener('focus', () => { isWindowActive = true; });
@@ -195,6 +164,7 @@
                     renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
                 });
 
+                // 🔥 PLAY SOUND IF NEW MESSAGE FROM ADMIN
                 if (hasNewMessage && !isWindowActive) {
                     msgSound.play().catch(e => console.log('Audio blocked'));
                 }
@@ -357,6 +327,10 @@
     </script>
 
     <script>
+        // ==========================================
+        // 🔔 NOTIFICATION SETUP (Student Side)
+        // ==========================================
+
         // 🔥 Service Worker registration
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('sw.js')
@@ -384,76 +358,67 @@
             updateNotifStatus();
         });
 
-        // 🔥 Notification Popup
-        document.addEventListener('DOMContentLoaded', () => {
-            const notifPopup = document.getElementById('notifPopup');
-            const enableBtn = document.getElementById('enableNotifBtn');
-            const laterBtn = document.getElementById('notifLaterBtn');
+        // 🔥 Enable Notification Button
+        document.addEventListener('DOMContentLoaded', function() {
+            const notifBtn = document.getElementById('notifBtn');
             const notifStatus = document.getElementById('notifStatus');
             
-            // Check permission
+            // Check agar already allowed hai toh button hide kar do
             if ('Notification' in window && Notification.permission === 'granted') {
-                notifPopup.style.display = 'none';
+                if (notifBtn) {
+                    notifBtn.textContent = '✅ Enabled';
+                    notifBtn.className = 'header-btn green';
+                    notifBtn.disabled = true;
+                }
                 if (notifStatus) {
-                    notifStatus.textContent = '✅ Notifications Enabled';
-                    notifStatus.className = 'notif-status enabled';
-                }
-                return;
-            }
-            
-            if (Notification.permission === 'default') {
-                notifPopup.style.display = 'block';
-            }
-            
-            if (Notification.permission === 'denied') {
-                notifPopup.style.display = 'none';
-                if (notifStatus) {
-                    notifStatus.textContent = '❌ Notifications Blocked';
-                    notifStatus.className = 'notif-status disabled';
+                    notifStatus.textContent = '🔔 Notifications On';
+                    notifStatus.style.color = '#a9c6dd';
                 }
             }
             
-            // Enable button
-            enableBtn.addEventListener('click', async () => {
-                const permission = await Notification.requestPermission();
-                if (permission === 'granted') {
-                    notifPopup.style.display = 'none';
-                    if (notifStatus) {
-                        notifStatus.textContent = '✅ Notifications Enabled';
-                        notifStatus.className = 'notif-status enabled';
+            if (notifBtn) {
+                notifBtn.addEventListener('click', async function() {
+                    if ('Notification' in window) {
+                        const permission = await Notification.requestPermission();
+                        if (permission === 'granted') {
+                            notifBtn.textContent = '✅ Enabled';
+                            notifBtn.className = 'header-btn green';
+                            notifBtn.disabled = true;
+                            if (notifStatus) {
+                                notifStatus.textContent = '🔔 Notifications On';
+                                notifStatus.style.color = '#a9c6dd';
+                            }
+                            // OneSignal ko tag update karein
+                            if (window.__oneSignal) {
+                                const chatId = localStorage.getItem('my_chat_session_id');
+                                await window.__oneSignal.User.addTag("chat_id", chatId);
+                            }
+                            alert('✅ Notifications Enabled! You will receive messages from Admin.');
+                        } else if (permission === 'denied') {
+                            alert('❌ Notifications blocked. Please enable from browser settings.');
+                        } else {
+                            alert('⚠️ Please allow notifications to receive messages.');
+                        }
+                    } else {
+                        alert('❌ Your browser does not support notifications.');
                     }
-                    // OneSignal tag update
-                    if (window.__oneSignal) {
-                        const myChatDocId = localStorage.getItem('my_chat_session_id');
-                        await window.__oneSignal.User.addTag("chat_id", myChatDocId);
-                    }
-                    alert('✅ Notifications enabled! You will receive messages from Admin.');
-                } else {
-                    alert('❌ Please allow notifications to receive messages.');
-                }
-            });
-            
-            laterBtn.addEventListener('click', () => {
-                notifPopup.style.display = 'none';
-            });
+                });
+            }
         });
 
         function updateNotifStatus() {
             const notifStatus = document.getElementById('notifStatus');
             if (!notifStatus) return;
             if ('Notification' in window && Notification.permission === 'granted') {
-                notifStatus.textContent = '✅ Notifications Enabled';
-                notifStatus.className = 'notif-status enabled';
-            } else if (Notification.permission === 'denied') {
-                notifStatus.textContent = '❌ Notifications Blocked';
-                notifStatus.className = 'notif-status disabled';
+                notifStatus.textContent = '🔔 Notifications On';
+                notifStatus.style.color = '#a9c6dd';
             } else {
-                notifStatus.textContent = '⏳ Notifications Pending';
-                notifStatus.className = 'notif-status';
+                notifStatus.textContent = '🔔 Notifications Off';
+                notifStatus.style.color = '#F4B400';
             }
         }
 
-        // Install button logic
+        // 🔥 Install button logic
         document.addEventListener('DOMContentLoaded', () => {
             let deferredPrompt;
             const installBtn = document.getElementById('installBtn');
@@ -491,19 +456,23 @@
 </head>
 <body>
 <div class="chat-container">
+    <!-- ========================================== -->
+    <!-- 🔥 HEADER WITH NOTIFICATION BUTTON          -->
+    <!-- ========================================== -->
     <div class="chat-header">
         <img class="profile-img" src="logo-192.png" alt="Teach Hub">
         <div class="header-info">
             <div class="name">Teach Hub Support</div>
-            <div class="status">
-                <span id="notifStatus" class="notif-status">⏳ Checking...</span>
-            </div>
+            <div class="status" id="notifStatus">🔔 Notifications Off</div>
         </div>
-        <button class="install-btn" id="installBtn">📲 Install App</button>
+        <button id="notifBtn" class="header-btn">🔔 Enable</button>
+        <button class="header-btn" id="installBtn">📲 Install</button>
     </div>
 
+    <!-- Chat Messages -->
     <div class="chat-messages" id="chatBox"></div>
 
+    <!-- Input Area -->
     <div class="chat-input-area">
         <div class="input-container">
             <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
@@ -515,13 +484,7 @@
     </div>
 </div>
 
-<!-- 🔥 NOTIFICATION POPUP -->
-<div id="notifPopup">
-    <p>🔔 Enable notifications to get instant replies from Admin!</p>
-    <button id="enableNotifBtn">✅ Enable Notifications</button>
-    <button id="notifLaterBtn">Later</button>
-</div>
-
+<!-- Install Help Overlay -->
 <div class="install-help-overlay" id="installHelpOverlay">
     <div class="install-help-box">
         <p>To install this app on your home screen:</p>
@@ -530,6 +493,7 @@
     </div>
 </div>
 
+<!-- Media Lightbox -->
 <div class="media-lightbox" id="mediaLightbox">
     <button class="media-lightbox-close" id="mediaLightboxCloseBtn">✕</button>
     <div id="mediaLightboxContent"></div>
