@@ -21,15 +21,25 @@
         .user-item {
             display: flex; flex-direction: column; padding: 12px 16px;
             border-bottom: 1px solid #f0f0f0; transition: background 0.2s;
+            cursor: pointer;
         }
         .user-item:hover { background: #f5f6f6; }
-
-        .user-clickable-area {
-            display: flex; align-items: center; gap: 15px; width: 100%; cursor: pointer;
+        .user-item .user-top {
+            display: flex; align-items: center; gap: 15px; width: 100%;
+        }
+        .user-item .user-bottom {
+            display: flex; align-items: center; justify-content: space-between;
+            margin-top: 4px; padding-left: 60px;
+        }
+        .user-item .last-msg {
+            font-size: 13px; color: #6b7a85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 200px;
+        }
+        .user-item .last-time {
+            font-size: 11px; color: #8696a0;
         }
 
-        .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #1B4F72; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; }
-        .user-details { flex: 1; }
+        .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #1B4F72; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; flex-shrink: 0; }
+        .user-details { flex: 1; min-width: 0; }
         .user-phone { font-size: 15px; font-weight: 600; color: #16232e; }
         .user-subtitle { font-size: 12px; color: #6b7a85; margin-top: 2px; }
 
@@ -37,10 +47,9 @@
             display: flex;
             align-items: center;
             gap: 8px;
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px dashed #e1e1e1;
+            margin-top: 6px;
             flex-wrap: wrap;
+            padding-left: 60px;
         }
         .status-tag {
             font-size: 11px;
@@ -87,8 +96,11 @@
             align-items: center;
             justify-content: center;
             padding: 0 5px;
+            flex-shrink: 0;
         }
+        .unread-badge.hidden { display: none; }
 
+        /* CHAT VIEW */
         #chat-view { display: none; flex-direction: column; height: 100%; }
         .chat-header { background: #123a56; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .back-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; }
@@ -144,6 +156,9 @@
         .video-thumb { position: relative; cursor: pointer; }
         .video-thumb .play-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 48px; height: 48px; background: rgba(0,0,0,0.55); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; pointer-events: none; }
         .msg img, .msg .video-thumb video { cursor: pointer; }
+
+        .seen-status { font-size: 10px; color: #8696a0; margin-left: 6px; }
+        .seen-status.read { color: #1B84D8; }
     </style>
 </head>
 <body>
@@ -162,7 +177,7 @@
             <img class="profile-img" src="logo-192.png" alt="Profile">
             <div class="header-info">
                 <div class="name" id="chatTitle">Support Panel</div>
-                <div class="status">active chat session</div>
+                <div class="status" id="chatStatus">online</div>
             </div>
         </div>
         <div class="chat-messages" id="chatBox"></div>
@@ -183,16 +198,10 @@
     <div id="mediaLightboxContent"></div>
 </div>
 
-<!-- ========================================== -->
-<!-- 🔥 FIREBASE SDKs                          -->
-<!-- ========================================== -->
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 
 <script>
-// ==========================================
-// 🔥 FIREBASE CONFIG
-// ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
     authDomain: "newpro-affc8.firebaseapp.com",
@@ -205,30 +214,12 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
-// ==========================================
-// 🔥 SERVICE ACCOUNT DATA (JSON SE)
-// ==========================================
-const SERVICE_ACCOUNT = {
-    "type": "service_account",
-    "project_id": "newpro-affc8",
-    "private_key_id": "61ba5ca1ecc1fb33f02d6596d4c0a999626ad3bd",
-    "private_key": "-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQDED1DWZiPF1zz9\nxAPMx5sCQI6V2UP/L53+Ht8nL391HxE5U5qrAvcBEYwsl6krlcCzmWLhDtsahIYo\nR8WvFdYQMHtlrG2SAsoWEWGd0UWk6ajPRCWSfagYDnVDkL5aDXtiiy4+h3YECmLO\natbvj36msLt26/fot6SEMkFm4lj2vGTOqhIXfIhucrKmBjzQezTk+Ki8OcIgdSBr\nvSrsFOP/0ZvcC+O5VMK3aKm9l88p9oeZ/fbANM3kNt58lWTijWVix8NM3aTSBT9e\nMOmkwBSk1nikXahx11irFYUexG9EiKVi1lXGOzryLEkdq2WxroNNhmrLMHKQ8ZJD\nKAdmzaCLAgMBAAECggEAYWvO2ko0mlkieGJPFRFWJ99WOoWUMRhDJIPIlNsYNWVz\nlI3DfBhkDkbe5UWTDRJDh7q/FF/iZaHWW+uWAjMShEbi+hmc9IGoUyDd5aKYPaLR\ne/Q7yzffL9z3TdR9kZfDaKsKFo4PCWDzyefy12TxJPkKncQRErU17W5fazUryaXg\nworZHXTcJljtG8HtRMPuYvk8tum3hrdcmMIBr5HZniKtDKxKK1z9Q0Mbqo9ro2rb\nu/SrK5CXUZdQprK4xfezxFTsleuvJb0WXqzo70X7Y63VA+8bPlN45sc3qcDqSz/U\nQNIVY3NjKG+j7qq265NAPKdhNPu2T5r7iLhUNWrGwQKBgQD/ynLklxpU6wOukMzk\nKhG5phyXOa9fzYydC9KL/qUaxpW0aOo/oeZtSSN+rMuwOt84rx8FgXC5mlZlo7rl\npAaGsU5vy8cffh2ITFExmzwXEJDPtvGPJv55IJflpevCZ46fMlIUxnJOekTejTh4\nNyLmNeB2ihCtkCrsY5bKV4u2YQKBgQDEOFypoqSVlIwBJTKb6bPMzmZ3oDCK9n4s\nGUNcx2BaX3XxH8bESS7rm/Dbf0Ume2LQXIhlvQzV6JTmgr8w/w1AWEZ7CBYUfhwu\nDw6xUHy2to+YzE9XVF6LFAmGdz77BJicsejKBgdGInZQdG0xNWGUzrMHRI1eOyaj\n1OyiJhYmawKBgEHs8L2/wBag17sXMOehfB4IFRhY0r1zYclcMbDJOc5z3kO4Qp+R\n36zNC+vrJzhNhBi88dbebKo5gAkEMPhc1R3D9v5TXAfe3kexu794Tf131IrkkM+f\ncjjP0LZslB3vyM95DbSzDOTzGGrvpN0/AKyquCZ1ISVKofV5GXUfKTAhAoGATpr9\nk/9Ry5Jcm8DZC1iN7MfqiJWlnKWuWeAs+ifs04dWaif+qnde0of/7w6HFylqpmnL\nQmZ/k9m+fLF4AhrKpjI22eadYcw7YcAqdKH3tAJieCWwyx1DWpfGURXIJyrqMCud\nRAEyPMhleUmKzKHD26cKVSkDMPKlQhB0U2jKis0CgYEA8vp+ilAVVkGkT/D0Dv55\nbJ55Q1yvJ5ubwMy4p81UCKNggY9PNxyQC0yqQ6A8OWaaBt6d3b/RJC9xMd4nazXy\n+QUly4U/ukzs90WnmQxqzWx4G5Z5Zx644N7YqmTQbCECjfpxT0K5cb+w5nAAp3/Y\nsE3hb8AtGNNsgL2cy4RZfGo=\n-----END PRIVATE KEY-----\n",
-    "client_email": "firebase-adminsdk-fbsvc@newpro-affc8.iam.gserviceaccount.com",
-    "client_id": "105929566846639084332",
-    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
-    "token_uri": "https://oauth2.googleapis.com/token",
-    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-    "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/firebase-adminsdk-fbsvc%40newpro-affc8.iam.gserviceaccount.com",
-    "universe_domain": "googleapis.com"
-};
-
-// ==========================================
-// 🔥 DOM REFERENCES
-// ==========================================
+// DOM
 const inboxView = document.getElementById('inbox-view');
 const chatView = document.getElementById('chat-view');
 const userListDiv = document.getElementById('userList');
 const chatTitle = document.getElementById('chatTitle');
+const chatStatus = document.getElementById('chatStatus');
 const chatBox = document.getElementById('chatBox');
 const msgInput = document.getElementById('msgInput');
 const sendBtn = document.getElementById('sendBtn');
@@ -236,277 +227,129 @@ const mediaInput = document.getElementById('mediaInput');
 const voiceBtn = document.getElementById('voiceBtn');
 
 let activeDocId = "";
+let currentSender = "admin";
 let activeChatListener = null;
 let mediaRecorder, audioChunks = [], isRecording = false;
 let isWindowActive = true;
+const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
 
 window.addEventListener('focus', () => { isWindowActive = true; });
 window.addEventListener('blur', () => { isWindowActive = false; });
 
-const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
-
 // ==========================================
-// 🔥 GET USER FRIENDLY NAME
+// HELPERS
 // ==========================================
 function getUserFriendlyName(docId) {
     let savedNames = localStorage.getItem('chatUserNames');
     savedNames = savedNames ? JSON.parse(savedNames) : {};
-
-    if (savedNames[docId]) {
-        return savedNames[docId];
-    }
-
-    const assignedNumbers = Object.values(savedNames).map(name => {
-        const num = parseInt(name.replace("Student ", ""));
-        return isNaN(num) ? 0 : num;
-    });
-    const nextNumber = assignedNumbers.length > 0 ? Math.max(...assignedNumbers) + 1 : 1;
-    const newName = "Student " + nextNumber;
-
-    savedNames[docId] = newName;
+    if (savedNames[docId]) return savedNames[docId];
+    const nums = Object.values(savedNames).map(n => parseInt(n.replace("Student ","")) || 0);
+    const next = nums.length ? Math.max(...nums) + 1 : 1;
+    const name = "Student " + next;
+    savedNames[docId] = name;
     localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
-    return newName;
+    return name;
+}
+
+function getFormattedTime() {
+    const d = new Date();
+    let h = d.getHours(), m = d.getMinutes();
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    h = h % 12 || 12;
+    return h + ':' + String(m).padStart(2,'0') + ' ' + ampm;
+}
+
+function formatTimeAgo(ts) {
+    if (!ts) return '';
+    const diff = Date.now() - ts;
+    if (diff < 60000) return 'Just now';
+    if (diff < 3600000) return Math.floor(diff/60000) + 'm';
+    if (diff < 86400000) return Math.floor(diff/3600000) + 'h';
+    return new Date(ts).toLocaleDateString();
 }
 
 // ==========================================
-// 🔥 UPDATE STUDENT STATUS
+// UPDATE STATUS
 // ==========================================
 async function updateCustomerStatus(docId, newStatus) {
     try {
         await db.collection('group_messages').doc(docId).update({ statusTag: newStatus });
-    } catch (error) {
-        console.error("Error updating status: ", error);
-    }
+    } catch(e) { console.error(e); }
 }
 
-window.handleStatusChange = function(selectElement, docId) {
-    const val = selectElement.value;
+window.handleStatusChange = function(el, docId) {
+    const val = el.value;
     if (val === 'custom') {
-        const customVal = prompt("Enter Custom Status (e.g., Class 9, Fee Pending, Enrolled):");
-        if (customVal && customVal.trim() !== "") {
-            updateCustomerStatus(docId, customVal.trim());
-        } else {
-            selectElement.value = "";
-        }
+        const c = prompt("Enter Custom Status:");
+        if (c && c.trim()) updateCustomerStatus(docId, c.trim());
+        else el.value = "";
     } else {
         updateCustomerStatus(docId, val);
     }
 };
 
 window.removeStatus = function(docId) {
-    if (confirm("Are you sure you want to remove the status?")) {
-        updateCustomerStatus(docId, "");
-    }
+    if (confirm("Remove status?")) updateCustomerStatus(docId, "");
 };
 
 // ==========================================
-// 🔥 OPEN CHAT
-// ==========================================
-window.openChat = function(docId, userName) {
-    activeDocId = docId;
-    inboxView.style.display = 'none';
-    chatView.style.display = 'flex';
-    chatTitle.innerText = userName;
-
-    if (activeChatListener) {
-        activeChatListener();
-        activeChatListener = null;
-    }
-
-    activeChatListener = db.collection('group_messages')
-        .doc(activeDocId)
-        .collection('messages')
-        .orderBy('time_now', 'asc')
-        .onSnapshot((snapshot) => {
-            chatBox.innerHTML = "";
-            let hasNewIncomingMsg = false;
-
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-
-                if (data.sender === 'user') {
-                    if (data.status !== 'read') {
-                        hasNewIncomingMsg = true;
-                    }
-                    if (isWindowActive && data.status !== 'read') {
-                        doc.ref.update({ status: 'read' });
-                    } else if (!isWindowActive && (!data.status || data.status === 'sent')) {
-                        doc.ref.update({ status: 'delivered' });
-                    }
-                }
-
-                const timeLabel = data.time_label || getFormattedTime();
-                const messageContent = data.file_url || data.content || data.message_text;
-                renderMessage(doc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
-            });
-
-            if (hasNewIncomingMsg) {
-                msgSound.play().catch(e => console.log("Audio blocked"));
-            }
-
-            chatBox.scrollTop = chatBox.scrollHeight;
-        });
-};
-
-// ==========================================
-// 🔥 LOAD INBOX
-// ==========================================
-async function loadInbox() {
-    inboxView.style.display = 'flex';
-    chatView.style.display = 'none';
-    if (activeChatListener) {
-        activeChatListener();
-        activeChatListener = null;
-    }
-
-    userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Loading conversations...</div>";
-
-    try {
-        db.collection('group_messages')
-            .orderBy('lastUpdated', 'desc')
-            .onSnapshot((querySnapshot) => {
-                userListDiv.innerHTML = "";
-
-                if (querySnapshot.empty) {
-                    userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>No active chats found.</div>";
-                    return;
-                }
-
-                querySnapshot.forEach((documentSnapshot) => {
-                    const docId = documentSnapshot.id;
-                    const docData = documentSnapshot.data();
-                    const userName = getUserFriendlyName(docId);
-                    const activeStatus = docData.statusTag || "";
-
-                    let tagClass = "status-tag";
-                    if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
-                    else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
-                    else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
-                    else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
-                    else if (activeStatus !== "") tagClass += " custom";
-
-                    const itemDiv = document.createElement('div');
-                    itemDiv.className = 'user-item';
-                    itemDiv.id = `inbox-item-${docId}`;
-
-                    itemDiv.innerHTML = `
-                        <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
-                            <div class="user-avatar">🎓</div>
-                            <div class="user-details">
-                                <div class="user-phone">${userName}</div>
-                                <div class="user-subtitle">ID: ${docId.substring(0, 15)}...</div>
-                            </div>
-                            <div id="badge-${docId}" class="unread-badge" style="display: none;">0</div>
-                        </div>
-                        <div class="status-container">
-                            ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px; color:#aaa;">No tag</span>'}
-                            <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
-                                <option value="" disabled selected>Assign status...</option>
-                                <option value="Payment Pending">Payment Pending</option>
-                                <option value="Plan 1">Plan 1</option>
-                                <option value="Plan 2">Plan 2</option>
-                                <option value="Completed">Completed</option>
-                                <option value="custom">✍️ Custom Status...</option>
-                            </select>
-                            ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
-                        </div>
-                    `;
-                    userListDiv.appendChild(itemDiv);
-
-                    // Unread count
-                    db.collection('group_messages')
-                        .doc(docId)
-                        .collection('messages')
-                        .where('sender', '==', 'user')
-                        .where('status', '!=', 'read')
-                        .onSnapshot((msgSnapshot) => {
-                            const unreadCount = msgSnapshot.size;
-                            const badge = document.getElementById(`badge-${docId}`);
-                            if (badge) {
-                                if (unreadCount > 0) {
-                                    badge.innerText = unreadCount;
-                                    badge.style.display = 'flex';
-                                } else {
-                                    badge.style.display = 'none';
-                                }
-                            }
-                        });
-                });
-            });
-    } catch (error) {
-        console.error("Error loading inbox: ", error);
-        userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: red;'>Failed to load chats.</div>";
-    }
-}
-
-window.goBackToInbox = function() {
-    loadInbox();
-};
-
-// ==========================================
-// 🔥 RENDER MESSAGE
+// RENDER MESSAGE
 // ==========================================
 function renderMessage(id, sender, type, content, timeStr, status) {
-    const msgDiv = document.createElement('div');
-    const isMe = sender === 'admin';
-    msgDiv.classList.add('msg', isMe ? 'sent-by-me' : 'received-by-me');
-
+    const div = document.createElement('div');
+    const isMe = sender === currentSender;
+    div.className = 'msg ' + (isMe ? 'sent-by-me' : 'received-by-me');
     if (!content) return;
 
     if (type === 'text') {
-        const textNode = document.createElement('span');
-        textNode.innerText = content;
-        msgDiv.appendChild(textNode);
+        const span = document.createElement('span');
+        span.textContent = content;
+        div.appendChild(span);
     } else if (type === 'image') {
         const img = document.createElement('img');
         img.src = content;
         img.alt = "Image";
-        img.onload = () => { chatBox.scrollTop = chatBox.scrollHeight; };
-        img.addEventListener('click', () => openMediaLightbox('image', content));
-        msgDiv.appendChild(img);
+        img.onload = () => chatBox.scrollTop = chatBox.scrollHeight;
+        img.onclick = () => openLightbox('image', content);
+        div.appendChild(img);
     } else if (type === 'video') {
-        const wrapper = document.createElement('div');
-        wrapper.className = 'video-thumb';
-        const video = document.createElement('video');
-        video.src = content;
-        video.preload = "metadata";
-        video.muted = true;
-        const playOverlay = document.createElement('div');
-        playOverlay.className = 'play-overlay';
-        playOverlay.innerText = '▶';
-        wrapper.appendChild(video);
-        wrapper.appendChild(playOverlay);
-        wrapper.addEventListener('click', () => openMediaLightbox('video', content));
-        msgDiv.appendChild(wrapper);
+        const wrap = document.createElement('div');
+        wrap.className = 'video-thumb';
+        const vid = document.createElement('video');
+        vid.src = content;
+        vid.preload = "metadata";
+        vid.muted = true;
+        const overlay = document.createElement('div');
+        overlay.className = 'play-overlay';
+        overlay.textContent = '▶';
+        wrap.appendChild(vid);
+        wrap.appendChild(overlay);
+        wrap.onclick = () => openLightbox('video', content);
+        div.appendChild(wrap);
     } else if (type === 'audio') {
         const audio = document.createElement('audio');
         audio.src = content;
         audio.controls = true;
         audio.preload = "auto";
-        msgDiv.appendChild(audio);
+        div.appendChild(audio);
     }
 
-    let ticksHtml = '';
+    let ticks = '';
     if (isMe) {
-        if (status === 'sent') ticksHtml = '<span class="tick sent">✓</span>';
-        else if (status === 'delivered') ticksHtml = '<span class="tick delivered">✓✓</span>';
-        else if (status === 'read') ticksHtml = '<span class="tick read">✓✓</span>';
-        else ticksHtml = '<span class="tick sent">✓</span>';
+        if (status === 'read') ticks = '<span class="tick read">✓✓</span>';
+        else if (status === 'delivered') ticks = '<span class="tick delivered">✓✓</span>';
+        else ticks = '<span class="tick sent">✓</span>';
     }
 
-    const metaDiv = document.createElement('div');
-    metaDiv.classList.add('msg-meta');
-    metaDiv.innerHTML = `<span>${timeStr || ''}</span> ${ticksHtml}`;
-    msgDiv.appendChild(metaDiv);
-
-    chatBox.appendChild(msgDiv);
+    const meta = document.createElement('div');
+    meta.className = 'msg-meta';
+    meta.innerHTML = `<span>${timeStr || ''}</span> ${ticks}`;
+    div.appendChild(meta);
+    chatBox.appendChild(div);
 }
 
-// ==========================================
-// 🔥 MEDIA LIGHTBOX
-// ==========================================
-function openMediaLightbox(type, src) {
-    const lightbox = document.getElementById('mediaLightbox');
+function openLightbox(type, src) {
+    const lb = document.getElementById('mediaLightbox');
     const content = document.getElementById('mediaLightboxContent');
     content.innerHTML = '';
     if (type === 'image') {
@@ -514,228 +357,247 @@ function openMediaLightbox(type, src) {
         img.src = src;
         content.appendChild(img);
     } else if (type === 'video') {
-        const video = document.createElement('video');
-        video.src = src;
-        video.controls = true;
-        video.autoplay = true;
-        content.appendChild(video);
+        const vid = document.createElement('video');
+        vid.src = src;
+        vid.controls = true;
+        vid.autoplay = true;
+        content.appendChild(vid);
     }
-    lightbox.style.display = 'flex';
+    lb.style.display = 'flex';
 }
 
-function closeMediaLightbox() {
+function closeLightbox() {
     document.getElementById('mediaLightbox').style.display = 'none';
     document.getElementById('mediaLightboxContent').innerHTML = '';
 }
-
-document.getElementById('mediaLightboxCloseBtn')?.addEventListener('click', closeMediaLightbox);
-document.getElementById('mediaLightbox')?.addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) closeMediaLightbox();
-});
+document.getElementById('mediaLightboxCloseBtn')?.addEventListener('click', closeLightbox);
+document.getElementById('mediaLightbox')?.addEventListener('click', e => { if (e.target === e.currentTarget) closeLightbox(); });
 
 // ==========================================
-// 🔥 GET FORMATTED TIME
+// OPEN CHAT
 // ==========================================
-function getFormattedTime() {
-    const now = new Date();
-    let hours = now.getHours(); let minutes = now.getMinutes();
-    const ampm = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12; hours = hours ? hours : 12;
-    minutes = minutes < 10 ? '0'+minutes : minutes;
-    return hours + ':' + minutes + ' ' + ampm;
-}
+window.openChat = function(docId, userName) {
+    activeDocId = docId;
+    inboxView.style.display = 'none';
+    chatView.style.display = 'flex';
+    chatTitle.textContent = userName;
+    chatStatus.textContent = 'online';
 
-// ==========================================
-// 🔥 GET ACCESS TOKEN FROM SERVICE ACCOUNT
-// ==========================================
-async function getAccessToken() {
-    const serviceAccount = SERVICE_ACCOUNT;
+    if (activeChatListener) activeChatListener();
 
-    const header = { alg: 'RS256', typ: 'JWT' };
-    const now = Math.floor(Date.now() / 1000);
-    const payload = {
-        iss: serviceAccount.client_email,
-        sub: serviceAccount.client_email,
-        aud: serviceAccount.token_uri,
-        iat: now,
-        exp: now + 3600,
-        scope: 'https://www.googleapis.com/auth/firebase.messaging'
-    };
-
-    const base64Url = (obj) => btoa(JSON.stringify(obj)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-    const message = base64Url(header) + '.' + base64Url(payload);
-
-    const privateKey = serviceAccount.private_key;
-    const pemHeader = '-----BEGIN PRIVATE KEY-----\n';
-    const pemFooter = '\n-----END PRIVATE KEY-----';
-    const pemContents = privateKey.substring(pemHeader.length, privateKey.length - pemFooter.length);
-    const binaryDer = Uint8Array.from(atob(pemContents), c => c.charCodeAt(0));
-
-    const key = await crypto.subtle.importKey(
-        'pkcs8', binaryDer.buffer,
-        { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
-        false, ['sign']
-    );
-
-    const signature = await crypto.subtle.sign(
-        { name: 'RSASSA-PKCS1-v1_5' },
-        key,
-        new TextEncoder().encode(message)
-    );
-
-    const signatureBase64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
-        .replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
-
-    const jwt = message + '.' + signatureBase64;
-
-    const response = await fetch('https://oauth2.googleapis.com/token', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: new URLSearchParams({
-            grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-            assertion: jwt
-        })
-    });
-    const data = await response.json();
-    return data.access_token;
-}
-
-// ==========================================
-// 🔥 SEND FCM NOTIFICATION
-// ==========================================
-async function sendFCMNotification(chatId, messageText) {
-    try {
-        const tokenDoc = await db.collection('fcm_tokens').doc(chatId).get();
-        if (!tokenDoc.exists) {
-            console.log('❌ Student FCM token not found');
-            return;
-        }
-        
-        const fcmToken = tokenDoc.data().token;
-        const accessToken = await getAccessToken();
-        
-        const response = await fetch('https://fcm.googleapis.com/v1/projects/newpro-affc8/messages:send', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${accessToken}`
-            },
-            body: JSON.stringify({
-                message: {
-                    token: fcmToken,
-                    notification: {
-                        title: '📩 Teach Hub Support',
-                        body: `Admin: ${messageText}`
-                    },
-                    webpush: {
-                        headers: { 'TTL': '604800' },
-                        fcm_options: { link: window.location.href }
-                    },
-                    android: {
-                        priority: 'high',
-                        ttl: '604800s'
+    activeChatListener = db.collection('group_messages')
+        .doc(activeDocId)
+        .collection('messages')
+        .orderBy('time_now', 'asc')
+        .onSnapshot(snapshot => {
+            chatBox.innerHTML = '';
+            let hasNew = false;
+            snapshot.forEach(doc => {
+                const data = doc.data();
+                if (data.sender === 'user' && data.status !== 'read') {
+                    hasNew = true;
+                    if (isWindowActive) {
+                        doc.ref.update({ status: 'read' });
+                    } else if (!data.status || data.status === 'sent') {
+                        doc.ref.update({ status: 'delivered' });
                     }
                 }
-            })
+                const timeLabel = data.time_label || getFormattedTime();
+                const content = data.file_url || data.content || data.message_text;
+                renderMessage(doc.id, data.sender, data.type || 'text', content, timeLabel, data.status);
+            });
+            if (hasNew && !isWindowActive) {
+                msgSound.play().catch(() => {});
+            }
+            chatBox.scrollTop = chatBox.scrollHeight;
         });
-        const result = await response.json();
-        console.log('✅ FCM notification sent:', result);
+};
+
+// ==========================================
+// LOAD INBOX
+// ==========================================
+async function loadInbox() {
+    inboxView.style.display = 'flex';
+    chatView.style.display = 'none';
+    if (activeChatListener) { activeChatListener(); activeChatListener = null; }
+
+    userListDiv.innerHTML = '<div style="padding:20px;text-align:center;color:#6b7a85;">Loading...</div>';
+
+    try {
+        db.collection('group_messages')
+            .orderBy('lastUpdated', 'desc')
+            .onSnapshot(async (querySnapshot) => {
+                userListDiv.innerHTML = '';
+                if (querySnapshot.empty) {
+                    userListDiv.innerHTML = '<div style="padding:20px;text-align:center;color:#6b7a85;">No active chats found.</div>';
+                    return;
+                }
+
+                const users = [];
+                for (const doc of querySnapshot.docs) {
+                    const docId = doc.id;
+                    const data = doc.data();
+                    const name = getUserFriendlyName(docId);
+                    const status = data.statusTag || '';
+                    let unreadCount = 0;
+                    let lastMsg = '';
+                    let lastTime = '';
+
+                    // Get unread count and last message
+                    const msgSnap = await db.collection('group_messages')
+                        .doc(docId)
+                        .collection('messages')
+                        .orderBy('time_now', 'desc')
+                        .limit(1)
+                        .get();
+
+                    if (!msgSnap.empty) {
+                        const last = msgSnap.docs[0].data();
+                        lastMsg = last.message_text || last.file_url || '';
+                        if (lastMsg.length > 30) lastMsg = lastMsg.substring(0, 30) + '...';
+                        lastTime = formatTimeAgo(last.time_now);
+                    }
+
+                    // Count unread from user
+                    const unreadSnap = await db.collection('group_messages')
+                        .doc(docId)
+                        .collection('messages')
+                        .where('sender', '==', 'user')
+                        .where('status', '!=', 'read')
+                        .get();
+                    unreadCount = unreadSnap.size;
+
+                    users.push({ docId, name, status, unreadCount, lastMsg, lastTime, data });
+                }
+
+                // Sort: unread first, then by lastUpdated
+                users.sort((a, b) => {
+                    if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
+                    if (a.unreadCount === 0 && b.unreadCount > 0) return 1;
+                    return (b.data.lastUpdated || 0) - (a.data.lastUpdated || 0);
+                });
+
+                users.forEach(({ docId, name, status, unreadCount, lastMsg, lastTime }) => {
+                    const tagClass = 'status-tag' + (status ? ' ' + 
+                        (status.toLowerCase() === 'payment pending' ? 'pending' :
+                         status.toLowerCase() === 'plan 1' ? 'plan1' :
+                         status.toLowerCase() === 'plan 2' ? 'plan2' :
+                         status.toLowerCase() === 'completed' ? 'completed' : 'custom') : '');
+
+                    const div = document.createElement('div');
+                    div.className = 'user-item';
+                    div.onclick = () => window.openChat(docId, name);
+                    div.innerHTML = `
+                        <div class="user-top">
+                            <div class="user-avatar">🎓</div>
+                            <div class="user-details">
+                                <div class="user-phone">${name}</div>
+                                <div class="user-subtitle">ID: ${docId.substring(0,12)}...</div>
+                            </div>
+                            <div class="unread-badge ${unreadCount === 0 ? 'hidden' : ''}">${unreadCount}</div>
+                        </div>
+                        <div class="user-bottom">
+                            <span class="last-msg">${lastMsg || 'No messages yet'}</span>
+                            <span class="last-time">${lastTime}</span>
+                        </div>
+                        <div class="status-container">
+                            ${status ? `<span class="${tagClass}">${status}</span>` : '<span style="font-size:11px;color:#aaa;">No tag</span>'}
+                            <select class="status-selector" onclick="event.stopPropagation()" onchange="handleStatusChange(this, '${docId}')">
+                                <option value="" disabled selected>Assign status...</option>
+                                <option value="Payment Pending">Payment Pending</option>
+                                <option value="Plan 1">Plan 1</option>
+                                <option value="Plan 2">Plan 2</option>
+                                <option value="Completed">Completed</option>
+                                <option value="custom">✍️ Custom...</option>
+                            </select>
+                            ${status ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕</button>` : ''}
+                        </div>
+                    `;
+                    userListDiv.appendChild(div);
+                });
+            });
     } catch (e) {
-        console.log('❌ FCM notification failed:', e);
+        console.error(e);
+        userListDiv.innerHTML = '<div style="padding:20px;text-align:center;color:red;">Failed to load chats.</div>';
     }
 }
 
+window.goBackToInbox = function() { loadInbox(); };
+
 // ==========================================
-// 🔥 SEND MESSAGE TO FIREBASE
+// SEND MESSAGE
 // ==========================================
 async function sendMessageToFirebase(type, content) {
     if (!activeDocId) return;
-    const timestamp = Date.now();
-    const messageData = {
-        sender: "admin",
-        type: type,
-        time_now: timestamp,
+    const ts = Date.now();
+    const data = {
+        sender: currentSender,
+        type,
+        time_now: ts,
         time_label: getFormattedTime(),
-        status: "sent",
-        file_url: type !== 'text' ? content : "",
+        status: 'sent',
+        file_url: type !== 'text' ? content : '',
         message_text: type === 'text' ? content : `Sent a ${type}`
     };
-
-    await db.collection('group_messages').doc(activeDocId).collection('messages').add(messageData);
-    await db.collection('group_messages').doc(activeDocId).set({ lastUpdated: timestamp }, { merge: true });
-
-    await sendFCMNotification(activeDocId, messageData.message_text);
+    await db.collection('group_messages').doc(activeDocId).collection('messages').add(data);
+    await db.collection('group_messages').doc(activeDocId).set({ lastUpdated: ts }, { merge: true });
 }
 
-// ==========================================
-// 🔥 EVENT LISTENERS
-// ==========================================
+// EVENTS
 sendBtn.addEventListener('click', () => {
     const t = msgInput.value.trim();
-    if (t) {
-        msgInput.value = "";
-        sendMessageToFirebase('text', t);
-    }
+    if (t) { msgInput.value = ''; sendMessageToFirebase('text', t); }
 });
-
-msgInput.addEventListener('keypress', (e) => {
+msgInput.addEventListener('keypress', e => {
     if (e.key === 'Enter') {
         const t = msgInput.value.trim();
-        if (t) {
-            msgInput.value = "";
-            sendMessageToFirebase('text', t);
-        }
+        if (t) { msgInput.value = ''; sendMessageToFirebase('text', t); }
     }
 });
 
 const toBase64 = file => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = error => reject(error);
+    const r = new FileReader();
+    r.readAsDataURL(file);
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
 });
 
-mediaInput.addEventListener('change', async (e) => {
+mediaInput.addEventListener('change', async e => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 1548576) {
-        alert("File size limit is 1.5MB.");
-        return;
-    }
-    let fileType = file.type.startsWith('image/') ? 'image' :
-                   file.type.startsWith('video/') ? 'video' :
-                   file.type.startsWith('audio/') ? 'audio' : 'text';
-    const base64 = await toBase64(file);
-    sendMessageToFirebase(fileType, base64);
+    if (file.size > 1548576) { alert('File size limit 1.5MB'); return; }
+    const type = file.type.startsWith('image/') ? 'image' :
+                 file.type.startsWith('video/') ? 'video' :
+                 file.type.startsWith('audio/') ? 'audio' : 'text';
+    const b64 = await toBase64(file);
+    sendMessageToFirebase(type, b64);
 });
 
 voiceBtn.addEventListener('click', async () => {
     if (!isRecording) {
-        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-            mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-            mediaRecorder.onstop = async () => {
-                const blob = new Blob(audioChunks, { type: 'audio/mp3' });
-                const base64 = await toBase64(blob);
-                sendMessageToFirebase('audio', base64);
-            };
-            mediaRecorder.start();
-            isRecording = true;
-            voiceBtn.classList.add('recording');
-            voiceBtn.innerText = "🛑";
-        }
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        mediaRecorder = new MediaRecorder(stream);
+        audioChunks = [];
+        mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+        mediaRecorder.onstop = async () => {
+            const blob = new Blob(audioChunks, { type: 'audio/mp3' });
+            const b64 = await toBase64(blob);
+            sendMessageToFirebase('audio', b64);
+        };
+        mediaRecorder.start();
+        isRecording = true;
+        voiceBtn.textContent = '🛑';
+        voiceBtn.classList.add('recording');
     } else {
         mediaRecorder.stop();
         isRecording = false;
+        voiceBtn.textContent = '🎙️';
         voiceBtn.classList.remove('recording');
-        voiceBtn.innerText = "🎙️";
     }
 });
 
 // ==========================================
-// 🔥 START
+// START
 // ==========================================
 loadInbox();
 </script>
