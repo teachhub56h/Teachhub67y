@@ -29,6 +29,7 @@
             gap: 8px; 
             box-shadow: 0 1px 3px rgba(0,0,0,0.1); 
             flex-wrap: wrap; 
+            position: relative;
         }
         .profile-img { width: 40px; height: 40px; border-radius: 12px; background: #ffffff; object-fit: contain; padding: 3px; }
         .header-info { flex: 1; min-width: 80px; }
@@ -48,6 +49,34 @@
         }
         .header-btn.green { background: #43a047; color: white; cursor: default; }
         .header-btn:disabled { opacity: 0.7; cursor: default; }
+
+        /* 🔥 NEW: UNREAD BADGE ON HEADER */
+        .unread-badge-container {
+            position: relative;
+            display: inline-block;
+            margin-left: 4px;
+        }
+        .unread-badge-count {
+            background-color: #e53935;
+            color: white;
+            font-size: 11px;
+            font-weight: bold;
+            min-width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 5px;
+            position: absolute;
+            top: -10px;
+            right: -12px;
+            border: 2px solid #1B4F72;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        .unread-badge-count.hidden {
+            display: none;
+        }
         
         .install-help-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 999; align-items: center; justify-content: center; padding: 20px; }
         .install-help-box { background: #fff; border-radius: 12px; padding: 20px; max-width: 340px; text-align: center; color: #16232e; font-size: 14px; line-height: 1.5; }
@@ -114,6 +143,10 @@
         </div>
         <button id="notifBtn" class="header-btn">🔔 Enable</button>
         <button class="header-btn" id="installBtn" style="background:#43a047; color:white;">📲 Install</button>
+        <!-- 🔥 NEW: Unread Badge -->
+        <div class="unread-badge-container">
+            <span class="unread-badge-count hidden" id="unreadBadge">0</span>
+        </div>
     </div>
 
     <div class="chat-messages" id="chatBox"></div>
@@ -153,7 +186,7 @@
 
 <script>
 // ==========================================
-// 🔥 FIREBASE CONFIG (SAHI KAR DIYA)
+// 🔥 FIREBASE CONFIG
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
@@ -180,7 +213,7 @@ window.myChatDocId = myChatDocId;
 console.log('📢 Your Chat ID:', myChatDocId);
 
 // ==========================================
-// 🔥 VAPID KEY (Aapki VAPID Key)
+// 🔥 VAPID KEY
 // ==========================================
 const VAPID_KEY = "BNo0ByAGSSl8A_YGrMG_TUbpOUIIPrpQ-LsLRd11MwqX6bKquJWZUU-W1oLimx94D5EMyJYSk9vDnkqhsdIRqno";
 
@@ -248,6 +281,25 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ==========================================
+// 🔥 UNREAD BADGE COUNT (WhatsApp Style)
+// ==========================================
+let unreadAdminCount = 0;
+const badgeElement = document.getElementById('unreadBadge');
+
+function updateBadge() {
+    if (unreadAdminCount === 0) {
+        badgeElement.classList.add('hidden');
+        badgeElement.textContent = '0';
+    } else if (unreadAdminCount > 99) {
+        badgeElement.textContent = '+99';
+        badgeElement.classList.remove('hidden');
+    } else {
+        badgeElement.textContent = unreadAdminCount;
+        badgeElement.classList.remove('hidden');
+    }
+}
+
+// ==========================================
 // 🔥 MESSAGE SEND FUNCTION
 // ==========================================
 async function sendMessageToFirebase(type, content) {
@@ -270,26 +322,61 @@ async function sendMessageToFirebase(type, content) {
 // 🔥 RECEIVE MESSAGES (Real-time)
 // ==========================================
 function loadMessages() {
+    let initialLoad = true;
+    
     db.collection('group_messages')
         .doc(myChatDocId)
         .collection('messages')
         .orderBy('time_now', 'asc')
         .onSnapshot((snapshot) => {
             const chatBox = document.getElementById('chatBox');
+            
+            // 🔥 Reset unread count on new snapshot
+            if (!initialLoad) {
+                unreadAdminCount = 0;
+            }
+            
             chatBox.innerHTML = '';
             let hasNew = false;
+            let adminMsgIds = [];
             
             snapshot.forEach((doc) => {
                 const data = doc.data();
+                const msgId = doc.id;
+                
                 if (data.sender === 'admin') {
-                    hasNew = true;
+                    adminMsgIds.push(msgId);
+                    // Count unread admin messages
+                    if (data.status !== 'read') {
+                        unreadAdminCount++;
+                        hasNew = true;
+                    }
                 }
                 renderMessage(doc.id, data.sender, data.type, data.file_url || data.message_text, data.time_label, data.status);
             });
             
-            if (hasNew) {
+            // 🔥 Mark all admin messages as read when user is viewing
+            if (adminMsgIds.length > 0 && !initialLoad) {
+                adminMsgIds.forEach((msgId) => {
+                    db.collection('group_messages')
+                        .doc(myChatDocId)
+                        .collection('messages')
+                        .doc(msgId)
+                        .update({ status: 'read' })
+                        .catch(() => {});
+                });
+                // Reset unread count after marking as read
+                unreadAdminCount = 0;
+            }
+            
+            // 🔥 Update badge
+            updateBadge();
+            
+            if (hasNew && !initialLoad) {
                 new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav').play().catch(() => {});
             }
+            
+            initialLoad = false;
             chatBox.scrollTop = chatBox.scrollHeight;
         });
 }
