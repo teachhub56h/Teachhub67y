@@ -1,11 +1,12 @@
 {
-  "name": "Teach Hub Admin",
-  "short_name": "TeachHub",
-  "description": "Teach Hub Admin Panel with Push Notifications",
+  "name": "Teach Hub",
+  "short_name": "Teach Hub",
+  "description": "Teach Hub - Student Learning Platform",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#1B4F72",
   "theme_color": "#1B4F72",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "logo-192.png",
@@ -18,6 +19,20 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Open Chat",
+      "short_name": "Chat",
+      "description": "Open Teach Hub Chat",
+      "url": "/",
+      "icons": [
+        {
+          "src": "logo-192.png",
+          "sizes": "192x192"
+        }
+      ]
     }
   ]
 }
