@@ -106,7 +106,6 @@
         }
         .unread-badge.hidden { display: none; }
 
-        /* Delete Button */
         .delete-user-btn {
             position: absolute;
             top: 8px;
@@ -124,10 +123,10 @@
             justify-content: center;
             opacity: 0.5;
             transition: opacity 0.2s;
+            z-index: 5;
         }
         .delete-user-btn:hover { opacity: 1; }
 
-        /* CHAT VIEW */
         #chat-view { display: none; flex-direction: column; height: 100%; }
         .chat-header { background: #123a56; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .back-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; }
@@ -239,7 +238,35 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 // ==========================================
-// DOM REFERENCES
+// 🔥 AUTO CREATE TEST STUDENTS (5)
+// ==========================================
+async function createTestStudents() {
+    const testStudents = [
+        "user_test_1",
+        "user_test_2",
+        "user_test_3",
+        "user_test_4",
+        "user_test_5"
+    ];
+
+    for (const id of testStudents) {
+        const docRef = db.collection('group_messages').doc(id);
+        const doc = await docRef.get();
+        if (!doc.exists) {
+            await docRef.set({
+                lastUpdated: Date.now() - Math.random() * 100000,
+                statusTag: "Test Student"
+            });
+            console.log('✅ Created:', id);
+        }
+    }
+    console.log('✅ All 5 test students created!');
+}
+
+createTestStudents();
+
+// ==========================================
+// DOM REFS
 // ==========================================
 const inboxView = document.getElementById('inbox-view');
 const chatView = document.getElementById('chat-view');
@@ -300,22 +327,17 @@ function formatTimeAgo(ts) {
 // ==========================================
 async function deleteStudent(docId, event) {
     event.stopPropagation();
-    if (!confirm("Are you sure you want to delete this student and all their messages?")) return;
+    if (!confirm("Delete this student and all messages?")) return;
     try {
-        // Delete all messages
         const msgs = await db.collection('group_messages').doc(docId).collection('messages').get();
-        for (const msg of msgs.docs) {
-            await msg.ref.delete();
-        }
-        // Delete student document
+        for (const msg of msgs.docs) await msg.ref.delete();
         await db.collection('group_messages').doc(docId).delete();
-        console.log('✅ Student deleted:', docId);
-        // Remove from UI
-        const item = document.getElementById(`inbox-item-${docId}`);
-        if (item) item.remove();
+        console.log('✅ Deleted:', docId);
+        const el = document.getElementById(`inbox-item-${docId}`);
+        if (el) el.remove();
     } catch (e) {
-        console.error('Error deleting student:', e);
-        alert('Failed to delete student.');
+        console.error(e);
+        alert('Failed to delete.');
     }
 }
 
@@ -498,7 +520,6 @@ async function loadInbox() {
                     let lastTime = '';
                     let totalMsgs = 0;
 
-                    // Get all messages
                     const msgSnap = await db.collection('group_messages')
                         .doc(docId)
                         .collection('messages')
@@ -514,7 +535,6 @@ async function loadInbox() {
                         lastTime = formatTimeAgo(last.time_now);
                     }
 
-                    // Count unread from user
                     const unreadSnap = await db.collection('group_messages')
                         .doc(docId)
                         .collection('messages')
@@ -526,7 +546,7 @@ async function loadInbox() {
                     users.push({ docId, name, status, unreadCount, lastMsg, lastTime, totalMsgs, data });
                 }
 
-                // Sort: unread first, then by lastUpdated
+                // 🔥 SORT: unread first, then by lastUpdated (newest first)
                 users.sort((a, b) => {
                     if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
                     if (a.unreadCount === 0 && b.unreadCount > 0) return 1;
@@ -556,7 +576,7 @@ async function loadInbox() {
                         <div class="user-bottom">
                             <span class="last-msg">${lastMsg || 'No messages yet'}</span>
                             <span class="last-time">${lastTime}</span>
-                            <span class="msg-count ${unreadCount > 0 ? 'unread' : ''}">${totalMsgs} msgs</span>
+                            <span class="msg-count ${unreadCount > 0 ? 'unread' : ''}">${totalMsgs}</span>
                         </div>
                         <div class="status-container">
                             ${status ? `<span class="${tagClass}">${status}</span>` : '<span style="font-size:11px;color:#aaa;">No tag</span>'}
