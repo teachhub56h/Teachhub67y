@@ -106,27 +106,6 @@
         }
         .unread-badge.hidden { display: none; }
 
-        .delete-user-btn {
-            position: absolute;
-            top: 8px;
-            right: 8px;
-            background: #e53935;
-            color: white;
-            border: none;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            font-size: 12px;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            opacity: 0.5;
-            transition: opacity 0.2s;
-            z-index: 5;
-        }
-        .delete-user-btn:hover { opacity: 1; }
-
         #chat-view { display: none; flex-direction: column; height: 100%; }
         .chat-header { background: #123a56; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .back-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; }
@@ -295,25 +274,6 @@ function formatTimeAgo(ts) {
 }
 
 // ==========================================
-// DELETE STUDENT
-// ==========================================
-async function deleteStudent(docId, event) {
-    event.stopPropagation();
-    if (!confirm("Delete this student and all messages?")) return;
-    try {
-        const msgs = await db.collection('group_messages').doc(docId).collection('messages').get();
-        for (const msg of msgs.docs) await msg.ref.delete();
-        await db.collection('group_messages').doc(docId).delete();
-        console.log('✅ Deleted:', docId);
-        const el = document.getElementById(`inbox-item-${docId}`);
-        if (el) el.remove();
-    } catch (e) {
-        console.error(e);
-        alert('Failed to delete.');
-    }
-}
-
-// ==========================================
 // UPDATE STATUS
 // ==========================================
 async function updateCustomerStatus(docId, newStatus) {
@@ -336,8 +296,6 @@ window.handleStatusChange = function(el, docId) {
 window.removeStatus = function(docId) {
     if (confirm("Remove status?")) updateCustomerStatus(docId, "");
 };
-
-window.deleteStudent = deleteStudent;
 
 // ==========================================
 // RENDER MESSAGE
@@ -536,7 +494,6 @@ async function loadInbox() {
                     div.className = 'user-item';
                     div.id = `inbox-item-${docId}`;
                     div.innerHTML = `
-                        <button class="delete-user-btn" onclick="deleteStudent('${docId}', event)" title="Delete Student">✕</button>
                         <div class="user-clickable-area" onclick="window.openChat('${docId}', '${name}')">
                             <div class="user-avatar">🎓</div>
                             <div class="user-details">
