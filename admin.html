@@ -215,13 +215,15 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 // ==========================================
-// 🔥 AUTO CREATE TEST STUDENTS
+// 🔥 AUTO CREATE 5 TEST STUDENTS
 // ==========================================
 async function createTestStudents() {
     const testStudents = [
         "user_test_1",
         "user_test_2",
-        "user_test_3"
+        "user_test_3",
+        "user_test_4",
+        "user_test_5"
     ];
 
     for (const id of testStudents) {
@@ -235,6 +237,7 @@ async function createTestStudents() {
             console.log('✅ Created:', id);
         }
     }
+    console.log('✅ All 5 test students created!');
 }
 
 // Run immediately
