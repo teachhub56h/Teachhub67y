@@ -279,6 +279,16 @@
             });
         };
 
+        // 🔥 NEW: Function to update lastUpdated timestamp for a chat
+        async function updateChatTimestamp(docId) {
+            const timestamp = Date.now();
+            try {
+                await updateDoc(doc(db, "group_messages", docId), { lastUpdated: timestamp });
+            } catch (error) {
+                console.error("Error updating timestamp:", error);
+            }
+        }
+
         async function loadInbox() {
             inboxView.style.display = 'flex';
             chatView.style.display = 'none';
@@ -298,6 +308,7 @@
                         return;
                     }
 
+                    // 🔥 SORT: Latest message wala user upar
                     const sortedDocs = [...querySnapshot.docs].sort((a, b) => {
                         const aTime = a.data().lastUpdated || 0;
                         const bTime = b.data().lastUpdated || 0;
@@ -345,15 +356,37 @@
                         `;
                         userListDiv.appendChild(itemDiv);
 
+                        // 🔥 LIVE UNREAD BADGE + TIMESTAMP UPDATE on new message
                         const messagesRef = collection(db, "group_messages", docId, "messages");
-                        onSnapshot(messagesRef, (msgSnapshot) => {
+                        onSnapshot(messagesRef, async (msgSnapshot) => {
                             let unreadCount = 0;
+                            let lastMsgTime = 0;
+
                             msgSnapshot.forEach((msgDoc) => {
                                 const msgData = msgDoc.data();
                                 if (msgData.sender === 'user' && msgData.status !== 'read') {
                                     unreadCount++;
                                 }
+                                // Track latest message time
+                                if (msgData.time_now > lastMsgTime) {
+                                    lastMsgTime = msgData.time_now;
+                                }
                             });
+
+                            // 🔥 Update lastUpdated if new message arrived (user or admin)
+                            const latestMsg = msgSnapshot.docs.reduce((latest, doc) => {
+                                const data = doc.data();
+                                return data.time_now > (latest?.data()?.time_now || 0) ? doc : latest;
+                            }, null);
+
+                            if (latestMsg) {
+                                const latestData = latestMsg.data();
+                                const currentLastUpdated = docData.lastUpdated || 0;
+                                // Agar naya message hai (ya admin ne bheja hai), timestamp update karo
+                                if (latestData.time_now > currentLastUpdated) {
+                                    await updateChatTimestamp(docId);
+                                }
+                            }
 
                             const badge = document.getElementById(`badge-${docId}`);
                             if (badge) {
@@ -508,8 +541,11 @@
             };
 
             await addDoc(collection(db, "group_messages", activeDocId, "messages"), messageData);
+            
+            // 🔥 Admin message bhejne par bhi timestamp update
+            await updateChatTimestamp(activeDocId);
+            
             sendPushNotification(activeDocId, messageData.message_text);
-            updateDoc(doc(db, "group_messages", activeDocId), { lastUpdated: timestamp }).catch(() => {});
         }
 
         sendBtn.addEventListener('click', () => { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } });
