@@ -215,7 +215,7 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 // ==========================================
-// 🔥 AUTO CREATE 5 TEST STUDENTS
+// 🔥 AUTO CREATE TEST STUDENTS
 // ==========================================
 async function createTestStudents() {
     const testStudents = [
@@ -260,6 +260,7 @@ const voiceBtn = document.getElementById('voiceBtn');
 let activeDocId = "";
 let currentSender = "admin";
 let activeChatListener = null;
+let inboxListener = null;
 let mediaRecorder, audioChunks = [], isRecording = false;
 let isWindowActive = true;
 const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
@@ -445,18 +446,19 @@ window.openChat = function(docId, userName) {
 };
 
 // ==========================================
-// LOAD INBOX WITH REAL-TIME UPDATES
+// 🔥 LOAD INBOX WITH REAL-TIME UPDATES
 // ==========================================
 async function loadInbox() {
     inboxView.style.display = 'flex';
     chatView.style.display = 'none';
     if (activeChatListener) { activeChatListener(); activeChatListener = null; }
+    if (inboxListener) { inboxListener(); inboxListener = null; }
 
     userListDiv.innerHTML = '<div style="padding:20px;text-align:center;color:#6b7a85;">Loading...</div>';
 
     try {
         // 🔥 REAL-TIME LISTENER FOR INBOX
-        db.collection('group_messages')
+        inboxListener = db.collection('group_messages')
             .orderBy('lastUpdated', 'desc')
             .onSnapshot(async (querySnapshot) => {
                 userListDiv.innerHTML = '';
@@ -554,7 +556,10 @@ async function loadInbox() {
     }
 }
 
-window.goBackToInbox = function() { loadInbox(); };
+window.goBackToInbox = function() { 
+    if (activeChatListener) { activeChatListener(); activeChatListener = null; }
+    loadInbox(); 
+};
 
 // ==========================================
 // SEND MESSAGE
