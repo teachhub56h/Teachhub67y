@@ -238,34 +238,6 @@ firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
 // ==========================================
-// 🔥 AUTO CREATE TEST STUDENTS (5)
-// ==========================================
-async function createTestStudents() {
-    const testStudents = [
-        "user_test_1",
-        "user_test_2",
-        "user_test_3",
-        "user_test_4",
-        "user_test_5"
-    ];
-
-    for (const id of testStudents) {
-        const docRef = db.collection('group_messages').doc(id);
-        const doc = await docRef.get();
-        if (!doc.exists) {
-            await docRef.set({
-                lastUpdated: Date.now() - Math.random() * 100000,
-                statusTag: "Test Student"
-            });
-            console.log('✅ Created:', id);
-        }
-    }
-    console.log('✅ All 5 test students created!');
-}
-
-createTestStudents();
-
-// ==========================================
 // DOM REFS
 // ==========================================
 const inboxView = document.getElementById('inbox-view');
