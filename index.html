@@ -50,7 +50,7 @@
         .header-btn.green { background: #43a047; color: white; cursor: default; }
         .header-btn:disabled { opacity: 0.7; cursor: default; }
 
-        /* 🔥 NEW: UNREAD BADGE ON HEADER */
+        /* UNREAD BADGE ON HEADER */
         .unread-badge-container {
             position: relative;
             display: inline-block;
@@ -143,7 +143,6 @@
         </div>
         <button id="notifBtn" class="header-btn">🔔 Enable</button>
         <button class="header-btn" id="installBtn" style="background:#43a047; color:white;">📲 Install</button>
-        <!-- 🔥 NEW: Unread Badge -->
         <div class="unread-badge-container">
             <span class="unread-badge-count hidden" id="unreadBadge">0</span>
         </div>
@@ -174,10 +173,6 @@
     <button class="media-lightbox-close" id="mediaLightboxCloseBtn">✕</button>
     <div id="mediaLightboxContent"></div>
 </div>
-
-<!-- ========================================== -->
-<!-- 🔥 FIREBASE + FCM SETUP                   -->
-<!-- ========================================== -->
 
 <!-- Firebase SDKs -->
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
@@ -222,7 +217,7 @@ const VAPID_KEY = "BNo0ByAGSSl8A_YGrMG_TUbpOUIIPrpQ-LsLRd11MwqX6bKquJWZUU-W1oLim
 // ==========================================
 async function registerFCM() {
     try {
-        const registration = await navigator.serviceWorker.register('/firebase-messaging-sw.js', {
+        const registration = await navigator.serviceWorker.register('/sw.js', {
             scope: '/'
         });
         console.log('✅ SW registered');
@@ -281,7 +276,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // ==========================================
-// 🔥 UNREAD BADGE COUNT (WhatsApp Style)
+// 🔥 UNREAD BADGE COUNT
 // ==========================================
 let unreadAdminCount = 0;
 const badgeElement = document.getElementById('unreadBadge');
@@ -296,6 +291,14 @@ function updateBadge() {
     } else {
         badgeElement.textContent = unreadAdminCount;
         badgeElement.classList.remove('hidden');
+    }
+    
+    // 🔥 NEW: Send badge count to Service Worker
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        navigator.serviceWorker.controller.postMessage({
+            type: 'UPDATE_BADGE',
+            count: unreadAdminCount
+        });
     }
 }
 
@@ -323,6 +326,7 @@ async function sendMessageToFirebase(type, content) {
 // ==========================================
 function loadMessages() {
     let initialLoad = true;
+    let previousUnreadCount = 0;
     
     db.collection('group_messages')
         .doc(myChatDocId)
@@ -331,7 +335,6 @@ function loadMessages() {
         .onSnapshot((snapshot) => {
             const chatBox = document.getElementById('chatBox');
             
-            // 🔥 Reset unread count on new snapshot
             if (!initialLoad) {
                 unreadAdminCount = 0;
             }
@@ -346,7 +349,6 @@ function loadMessages() {
                 
                 if (data.sender === 'admin') {
                     adminMsgIds.push(msgId);
-                    // Count unread admin messages
                     if (data.status !== 'read') {
                         unreadAdminCount++;
                         hasNew = true;
@@ -355,7 +357,7 @@ function loadMessages() {
                 renderMessage(doc.id, data.sender, data.type, data.file_url || data.message_text, data.time_label, data.status);
             });
             
-            // 🔥 Mark all admin messages as read when user is viewing
+            // Mark admin messages as read
             if (adminMsgIds.length > 0 && !initialLoad) {
                 adminMsgIds.forEach((msgId) => {
                     db.collection('group_messages')
@@ -365,7 +367,6 @@ function loadMessages() {
                         .update({ status: 'read' })
                         .catch(() => {});
                 });
-                // Reset unread count after marking as read
                 unreadAdminCount = 0;
             }
             
