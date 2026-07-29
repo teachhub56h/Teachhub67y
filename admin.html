@@ -214,7 +214,35 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.firestore();
 
+// ==========================================
+// 🔥 AUTO CREATE TEST STUDENTS
+// ==========================================
+async function createTestStudents() {
+    const testStudents = [
+        "user_test_1",
+        "user_test_2",
+        "user_test_3"
+    ];
+
+    for (const id of testStudents) {
+        const docRef = db.collection('group_messages').doc(id);
+        const doc = await docRef.get();
+        if (!doc.exists) {
+            await docRef.set({
+                lastUpdated: Date.now(),
+                statusTag: "Test Student"
+            });
+            console.log('✅ Created:', id);
+        }
+    }
+}
+
+// Run immediately
+createTestStudents();
+
+// ==========================================
 // DOM
+// ==========================================
 const inboxView = document.getElementById('inbox-view');
 const chatView = document.getElementById('chat-view');
 const userListDiv = document.getElementById('userList');
@@ -443,7 +471,6 @@ async function loadInbox() {
                     let lastMsg = '';
                     let lastTime = '';
 
-                    // Get unread count and last message
                     const msgSnap = await db.collection('group_messages')
                         .doc(docId)
                         .collection('messages')
@@ -458,7 +485,6 @@ async function loadInbox() {
                         lastTime = formatTimeAgo(last.time_now);
                     }
 
-                    // Count unread from user
                     const unreadSnap = await db.collection('group_messages')
                         .doc(docId)
                         .collection('messages')
@@ -470,7 +496,6 @@ async function loadInbox() {
                     users.push({ docId, name, status, unreadCount, lastMsg, lastTime, data });
                 }
 
-                // Sort: unread first, then by lastUpdated
                 users.sort((a, b) => {
                     if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
                     if (a.unreadCount === 0 && b.unreadCount > 0) return 1;
