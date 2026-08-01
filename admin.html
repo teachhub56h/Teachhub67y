@@ -189,7 +189,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs, updateDoc, doc, deleteDoc, where, limit, getDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs, getDocsFromCache, getDocsFromServer, updateDoc, doc, deleteDoc, where, limit, getCountFromServer } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
@@ -230,6 +230,46 @@
         // 🔥 OPTIMIZATION: Cache + Pagination
         // ==========================================
         const PAGE_LIMIT = 50; // Sirf 50 messages load honge
+
+        // ==========================================
+        // 🔥 FIX #1: Unread badge listeners ab per-user
+        // sirf ek dafa bante hain aur track hote hain,
+        // taake har inbox re-render pe naye listeners
+        // dher na ho jayein (yehi quota khaane ki asal
+        // wajah thi — 380 snapshot listeners peak).
+        // ==========================================
+        const unreadListeners = {}; // { docId: unsubscribeFn }
+
+        function attachUnreadListener(docId) {
+            if (unreadListeners[docId]) return; // already listening, skip
+
+            const messagesRef = collection(db, "group_messages", docId, "messages");
+            const unreadQuery = query(messagesRef, where("sender", "==", "user"), where("status", "!=", "read"));
+
+            const unsub = onSnapshot(unreadQuery, (snapshot) => {
+                const unreadCount = snapshot.size;
+                const badge = document.getElementById(`badge-${docId}`);
+                if (badge) {
+                    if (unreadCount > 0) {
+                        badge.innerText = unreadCount;
+                        badge.style.display = 'flex';
+                    } else {
+                        badge.style.display = 'none';
+                    }
+                }
+            });
+
+            unreadListeners[docId] = unsub;
+        }
+
+        function cleanupRemovedUnreadListeners(currentDocIds) {
+            Object.keys(unreadListeners).forEach((docId) => {
+                if (!currentDocIds.includes(docId)) {
+                    unreadListeners[docId]();
+                    delete unreadListeners[docId];
+                }
+            });
+        }
 
         function getUserFriendlyName(docId) {
             let savedNames = localStorage.getItem('chatUserNames');
@@ -281,7 +321,7 @@
         };
 
         // ==========================================
-        // 🔥 NEW: Clear Chat Function (Admin + User both sides)
+        // 🔥 Clear Chat Function (Admin + User both sides)
         // ==========================================
         window.clearChat = async function(docId, userName) {
             if (!confirm(`⚠️ Are you sure you want to clear ALL messages for "${userName}"? This cannot be undone!`)) {
@@ -291,12 +331,12 @@
             try {
                 const messagesRef = collection(db, "group_messages", docId, "messages");
                 const messagesSnapshot = await getDocs(messagesRef);
-                
+
                 const deletePromises = [];
                 messagesSnapshot.forEach((msgDoc) => {
                     deletePromises.push(deleteDoc(doc(db, "group_messages", docId, "messages", msgDoc.id)));
                 });
-                
+
                 await Promise.all(deletePromises);
                 console.log(`✅ All messages cleared for ${docId}`);
 
@@ -317,7 +357,7 @@
         };
 
         // ==========================================
-        // 🔥 Delete User Function (Improved)
+        // 🔥 Delete User Function
         // ==========================================
         window.deleteUser = async function(docId, userName) {
             if (!confirm(`⚠️ Are you sure you want to DELETE "${userName}" and ALL their chats? This cannot be undone!`)) {
@@ -328,12 +368,12 @@
                 // Step 1: Delete all messages in sub-collection
                 const messagesRef = collection(db, "group_messages", docId, "messages");
                 const messagesSnapshot = await getDocs(messagesRef);
-                
+
                 const deletePromises = [];
                 messagesSnapshot.forEach((msgDoc) => {
                     deletePromises.push(deleteDoc(doc(db, "group_messages", docId, "messages", msgDoc.id)));
                 });
-                
+
                 await Promise.all(deletePromises);
                 console.log(`✅ All messages deleted for ${docId}`);
 
@@ -347,6 +387,12 @@
                     savedNames = JSON.parse(savedNames);
                     delete savedNames[docId];
                     localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
+                }
+
+                // Step 3b: Stop and remove its unread listener
+                if (unreadListeners[docId]) {
+                    unreadListeners[docId]();
+                    delete unreadListeners[docId];
                 }
 
                 // Step 4: If currently viewing this chat, go back to inbox
@@ -363,7 +409,7 @@
         };
 
         // ==========================================
-        // 🔥 Optimized: Open Chat with Pagination + Cache
+        // 🔥 Open Chat with Pagination + Cache (fixed)
         // ==========================================
         window.openChat = function(docId, userName) {
             activeDocId = docId;
@@ -371,12 +417,12 @@
             chatView.style.display = 'flex';
             chatTitle.innerText = userName;
 
-            // OPTIMIZATION: Use get() + limit() instead of onSnapshot for initial load
             const messagesRef = collection(db, "group_messages", activeDocId, "messages");
             const q = query(messagesRef, orderBy("time_now", "asc"), limit(PAGE_LIMIT));
 
-            // First load from cache (fast)
-            getDocs(q, { source: 'cache' }).then((snapshot) => {
+            // FIX #2: getDocs() doesn't take a { source } option in the modular SDK.
+            // Use getDocsFromCache() / getDocsFromServer() directly instead.
+            getDocsFromCache(q).then((snapshot) => {
                 chatBox.innerHTML = "";
                 if (!snapshot.empty) {
                     snapshot.forEach((snapshotDoc) => {
@@ -386,10 +432,21 @@
                         renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
                     });
                     chatBox.scrollTop = chatBox.scrollHeight;
+                } else {
+                    // Cache empty (first time opening this chat) -> pull from server
+                    return getDocsFromServer(q).then((serverSnapshot) => {
+                        chatBox.innerHTML = "";
+                        serverSnapshot.forEach((snapshotDoc) => {
+                            const data = snapshotDoc.data();
+                            const timeLabel = data.time_label || getFormattedTime();
+                            const messageContent = data.file_url || data.content || data.message_text;
+                            renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
+                        });
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                    });
                 }
             }).catch(() => {
-                // If cache fails, load from server
-                getDocs(q, { source: 'server' }).then((snapshot) => {
+                getDocsFromServer(q).then((snapshot) => {
                     chatBox.innerHTML = "";
                     snapshot.forEach((snapshotDoc) => {
                         const data = snapshotDoc.data();
@@ -401,13 +458,12 @@
                 });
             });
 
-            // OPTIMIZATION: Lightweight listener only for new messages (not all)
+            // Real-time listener only for new messages (ticks / new msgs still fully live)
             if (activeChatListener) {
                 activeChatListener();
                 activeChatListener = null;
             }
 
-            // Only listen for new messages after the last loaded message
             const lastMsgQuery = query(messagesRef, orderBy("time_now", "desc"), limit(1));
             activeChatListener = onSnapshot(lastMsgQuery, (snapshot) => {
                 snapshot.docChanges().forEach((change) => {
@@ -423,7 +479,7 @@
         };
 
         // ==========================================
-        // 🔥 Optimized: Load Inbox with Cache
+        // 🔥 Load Inbox with Cache (real-time list preserved)
         // ==========================================
         async function loadInbox() {
             inboxView.style.display = 'flex';
@@ -436,11 +492,9 @@
             userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Loading conversations...</div>";
 
             try {
-                // OPTIMIZATION: Use get() instead of onSnapshot for initial load
-                const querySnapshot = await getDocs(collection(db, "group_messages"), { source: 'cache' });
+                const querySnapshot = await getDocsFromCache(collection(db, "group_messages"));
                 renderInbox(querySnapshot);
 
-                // Then listen for changes (lightweight)
                 if (inboxListener) {
                     inboxListener();
                 }
@@ -450,10 +504,16 @@
 
             } catch (error) {
                 console.error("Error loading inbox: ", error);
-                // Fallback to server
                 try {
-                    const querySnapshot = await getDocs(collection(db, "group_messages"), { source: 'server' });
+                    const querySnapshot = await getDocsFromServer(collection(db, "group_messages"));
                     renderInbox(querySnapshot);
+
+                    if (inboxListener) {
+                        inboxListener();
+                    }
+                    inboxListener = onSnapshot(collection(db, "group_messages"), (snapshot) => {
+                        renderInbox(snapshot);
+                    });
                 } catch (e) {
                     userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: red;'>Failed to load chats.</div>";
                 }
@@ -465,6 +525,7 @@
 
             if (querySnapshot.empty) {
                 userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>No active chats found.</div>";
+                cleanupRemovedUnreadListeners([]);
                 return;
             }
 
@@ -473,6 +534,8 @@
                 const bTime = b.data().lastUpdated || 0;
                 return bTime - aTime;
             });
+
+            const currentDocIds = sortedDocs.map(d => d.id);
 
             sortedDocs.forEach((documentSnapshot) => {
                 const docId = documentSnapshot.id;
@@ -519,22 +582,12 @@
                 `;
                 userListDiv.appendChild(itemDiv);
 
-                // Unread badge count - optimized with lightweight listener
-                const messagesRef = collection(db, "group_messages", docId, "messages");
-                const unreadQuery = query(messagesRef, where("sender", "==", "user"), where("status", "!=", "read"));
-                onSnapshot(unreadQuery, (snapshot) => {
-                    const unreadCount = snapshot.size;
-                    const badge = document.getElementById(`badge-${docId}`);
-                    if (badge) {
-                        if (unreadCount > 0) {
-                            badge.innerText = unreadCount;
-                            badge.style.display = 'flex';
-                        } else {
-                            badge.style.display = 'none';
-                        }
-                    }
-                });
+                // FIX: only attach a listener if this docId doesn't already have one
+                attachUnreadListener(docId);
             });
+
+            // FIX: stop listeners for any student no longer in the list (deleted elsewhere)
+            cleanupRemovedUnreadListeners(currentDocIds);
         }
 
         window.goBackToInbox = function() {
@@ -687,9 +740,15 @@
             reader.onload = () => resolve(reader.result); reader.onerror = error => reject(error);
         });
 
+        // FIX #3: Firestore has a hard 1MB-per-document limit, and base64 encoding
+        // inflates a file's size by ~33%. The old 1.5MB raw-file limit could produce
+        // a base64 string bigger than 1MB and fail to save. Capping raw file size at
+        // 700KB keeps the base64 result safely under Firestore's limit.
+        const MAX_FILE_BYTES = 700 * 1024; // ~700KB raw -> ~930KB base64, safely under 1MB
+
         mediaInput.addEventListener('change', async (e) => {
             const file = e.target.files[0]; if (!file) return;
-            if (file.size > 1548576) { alert("File size limit is 1.5MB."); return; }
+            if (file.size > MAX_FILE_BYTES) { alert("File size limit is 700KB (Firestore document limit)."); return; }
             let fileType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'text';
             const base64 = await toBase64(file);
             sendMessageToFirebase(fileType, base64);
