@@ -178,6 +178,8 @@
         .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #54656f; display: flex; align-items: center; justify-content: center; }
         .icon-btn.recording { color: #ea0038; animation: blink 1s infinite; }
         .send-btn { background: #1B4F72; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+        .header-icon-btn { background: none; border: none; color: white; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 6px; }
+        .header-icon-btn:hover { background: rgba(255,255,255,0.12); }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
         .media-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 2000; align-items: center; justify-content: center; padding: 16px; }
         .media-lightbox img, .media-lightbox video { max-width: 100%; max-height: 100%; border-radius: 6px; }
@@ -217,6 +219,8 @@
         const sendBtn = document.getElementById('sendBtn');
         const mediaInput = document.getElementById('mediaInput');
         const voiceBtn = document.getElementById('voiceBtn');
+        const chatClearBtn = document.getElementById('chatClearBtn');
+        const chatDeleteBtn = document.getElementById('chatDeleteBtn');
 
         let activeDocId = "";
         let currentSender = "admin";
@@ -336,11 +340,19 @@
 
                 const deletePromises = [];
                 messagesSnapshot.forEach((msgDoc) => {
+                    const data = msgDoc.data();
+                    // FIX: also delete the actual media file from Storage, not just the
+                    // Firestore reference to it — otherwise Storage usage keeps growing.
+                    if (data.storage_path) {
+                        deletePromises.push(
+                            deleteObject(ref(storage, data.storage_path)).catch(() => {})
+                        );
+                    }
                     deletePromises.push(deleteDoc(doc(db, "group_messages", docId, "messages", msgDoc.id)));
                 });
 
                 await Promise.all(deletePromises);
-                console.log(`✅ All messages cleared for ${docId}`);
+                console.log(`✅ All messages (and their media) cleared for ${docId}`);
 
                 // Update timestamp
                 await updateDoc(doc(db, "group_messages", docId), { lastUpdated: Date.now() });
@@ -350,7 +362,7 @@
                     chatBox.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Chat cleared. No messages.</div>";
                 }
 
-                alert(`✅ All messages for "${userName}" have been cleared.`);
+                alert(`✅ All messages for "${userName}" have been cleared for both sides.`);
 
             } catch (error) {
                 console.error("Error clearing chat:", error);
@@ -367,17 +379,23 @@
             }
 
             try {
-                // Step 1: Delete all messages in sub-collection
+                // Step 1: Delete all messages in sub-collection (and their Storage media)
                 const messagesRef = collection(db, "group_messages", docId, "messages");
                 const messagesSnapshot = await getDocs(messagesRef);
 
                 const deletePromises = [];
                 messagesSnapshot.forEach((msgDoc) => {
+                    const data = msgDoc.data();
+                    if (data.storage_path) {
+                        deletePromises.push(
+                            deleteObject(ref(storage, data.storage_path)).catch(() => {})
+                        );
+                    }
                     deletePromises.push(deleteDoc(doc(db, "group_messages", docId, "messages", msgDoc.id)));
                 });
 
                 await Promise.all(deletePromises);
-                console.log(`✅ All messages deleted for ${docId}`);
+                console.log(`✅ All messages and media deleted for ${docId}`);
 
                 // Step 2: Delete main document
                 await deleteDoc(doc(db, "group_messages", docId));
@@ -747,7 +765,7 @@
             }
         }
 
-        async function sendMessageToFirebase(type, content) {
+        async function sendMessageToFirebase(type, content, storagePath) {
             if (!activeDocId) return;
             const timestamp = Date.now();
             const messageData = {
@@ -757,6 +775,7 @@
                 time_label: getFormattedTime(),
                 status: "sent",
                 file_url: type !== 'text' ? content : "",
+                storage_path: storagePath || "",
                 message_text: type === 'text' ? content : `Sent a ${type}`
             };
 
@@ -767,6 +786,13 @@
 
         sendBtn.addEventListener('click', () => { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } });
         msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } } });
+
+        chatClearBtn.addEventListener('click', () => {
+            if (activeDocId) window.clearChat(activeDocId, chatTitle.innerText);
+        });
+        chatDeleteBtn.addEventListener('click', () => {
+            if (activeDocId) window.deleteUser(activeDocId, chatTitle.innerText);
+        });
 
         const toBase64 = file => new Promise((resolve, reject) => {
             const reader = new FileReader(); reader.readAsDataURL(file);
@@ -803,7 +829,7 @@
                 await uploadString(storageRef, base64, 'data_url');
                 const downloadUrl = await getDownloadURL(storageRef);
                 uploadingBubble.remove();
-                sendMessageToFirebase(fileType, downloadUrl);
+                sendMessageToFirebase(fileType, downloadUrl, filePath);
             } catch (error) {
                 console.error("Media upload failed:", error);
                 uploadingBubble.remove();
@@ -859,6 +885,8 @@
                 <div class="name" id="chatTitle">Support Panel</div>
                 <div class="status">active chat session</div>
             </div>
+            <button class="header-icon-btn" id="chatClearBtn" title="Clear Chat">🧹</button>
+            <button class="header-icon-btn" id="chatDeleteBtn" title="Delete User">🗑</button>
         </div>
         <div class="chat-messages" id="chatBox"></div>
         <div class="chat-input-area">
