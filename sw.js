@@ -2,14 +2,14 @@
 // 🔥 SERVICE WORKER - Teach Hub
 // ==========================================
 
-const CACHE_NAME = 'teachhub-v1';
+const CACHE_NAME = 'teachhub-v2';
 const urlsToCache = [
-    '/',
-    '/index.html',
-    '/admin.html',
-    '/logo-192.png',
-    '/logo-512.png',
-    '/manifest.json'
+    '/Teachhub67y/',
+    '/Teachhub67y/index.html',
+    '/Teachhub67y/admin.html',
+    '/Teachhub67y/logo-192.png',
+    '/Teachhub67y/logo-512.png',
+    '/Teachhub67y/manifest.json'
 ];
 
 // ==========================================
@@ -64,8 +64,8 @@ self.addEventListener('push', (event) => {
     let data = {
         title: 'Teach Hub',
         body: 'You have a new message',
-        icon: '/logo-192.png',
-        badge: '/logo-192.png'
+        icon: '/Teachhub67y/logo-192.png',
+        badge: '/Teachhub67y/logo-192.png'
     };
 
     try {
@@ -86,7 +86,7 @@ self.addEventListener('push', (event) => {
         vibrate: [200, 100, 200],
         data: {
             chatId: data.chatId,
-            url: '/'
+            url: '/Teachhub67y/'
         },
         actions: [
             {
@@ -104,7 +104,7 @@ self.addEventListener('push', (event) => {
         self.registration.showNotification(data.title, options)
     );
 
-    // 🔥 NEW: Update badge count when push notification arrives
+    // 🔥 Update badge count when push notification arrives
     updateBadgeCount();
 });
 
@@ -120,12 +120,12 @@ self.addEventListener('notificationclick', (event) => {
                 .then((clientList) => {
                     for (let i = 0; i < clientList.length; i++) {
                         const client = clientList[i];
-                        if (client.url === '/' && 'focus' in client) {
+                        if (client.url.includes('/Teachhub67y/') && 'focus' in client) {
                             return client.focus();
                         }
                     }
                     if (clients.openWindow) {
-                        return clients.openWindow('/');
+                        return clients.openWindow('/Teachhub67y/');
                     }
                 })
         );
@@ -136,14 +136,11 @@ self.addEventListener('notificationclick', (event) => {
 });
 
 // ==========================================
-// 🔥 BADGE COUNT FUNCTIONS (NEW)
+// 🔥 BADGE COUNT FUNCTIONS
 // ==========================================
 
-// 🔥 Update app icon badge count
 async function updateBadgeCount() {
     try {
-        // Get unread count from Firestore or maintain a counter
-        // For now, we'll increment a counter stored in cache
         const cache = await caches.open('badge-cache');
         let response = await cache.match('badge-count');
         let count = 0;
@@ -153,36 +150,29 @@ async function updateBadgeCount() {
             count = parseInt(text) || 0;
         }
         
-        count += 1; // Increment for new message
+        count += 1;
         
-        // Store new count
         const newResponse = new Response(String(count), {
             headers: { 'Content-Type': 'text/plain' }
         });
         await cache.put('badge-count', newResponse);
         
-        // Set badge on app icon
         if (navigator.setAppBadge) {
             await navigator.setAppBadge(count);
             console.log('✅ Badge set to:', count);
-        } else {
-            console.log('⚠️ setAppBadge not supported');
         }
     } catch (error) {
         console.log('❌ Badge update error:', error);
     }
 }
 
-// 🔥 Reset badge count
 async function resetBadgeCount() {
     try {
-        // Clear badge
         if (navigator.clearAppBadge) {
             await navigator.clearAppBadge();
             console.log('✅ Badge cleared');
         }
         
-        // Reset stored count
         const cache = await caches.open('badge-cache');
         await cache.put('badge-count', new Response('0', {
             headers: { 'Content-Type': 'text/plain' }
@@ -193,7 +183,6 @@ async function resetBadgeCount() {
     }
 }
 
-// 🔥 Listen for messages from client to update badge
 self.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'UPDATE_BADGE') {
         const count = event.data.count || 0;
@@ -210,7 +199,7 @@ self.addEventListener('message', (event) => {
 });
 
 // ==========================================
-// 🔥 BACKGROUND SYNC (Optional)
+// 🔥 BACKGROUND SYNC
 // ==========================================
 self.addEventListener('sync', (event) => {
     if (event.tag === 'sync-messages') {
@@ -220,5 +209,4 @@ self.addEventListener('sync', (event) => {
 
 async function syncMessages() {
     console.log('🔄 Syncing messages...');
-    // Add your sync logic here
 }
