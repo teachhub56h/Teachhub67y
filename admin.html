@@ -92,26 +92,40 @@
             padding: 0 5px;
         }
 
-        /* DELETE BUTTON */
-        .delete-user-btn {
-            font-size: 12px;
+        /* ACTION BUTTONS */
+        .user-actions {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            margin-top: 4px;
+            flex-wrap: wrap;
+        }
+        .action-btn {
+            font-size: 11px;
             padding: 4px 10px;
-            background: #c62828;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            margin-left: auto;
             transition: background 0.2s;
         }
-        .delete-user-btn:hover {
+        .action-btn.delete {
+            background: #c62828;
+        }
+        .action-btn.delete:hover {
             background: #b71c1c;
         }
-        .user-actions {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 4px;
+        .action-btn.clear {
+            background: #f57c00;
+        }
+        .action-btn.clear:hover {
+            background: #e65100;
+        }
+        .action-btn.optimize {
+            background: #2e7d32;
+        }
+        .action-btn.optimize:hover {
+            background: #1b5e20;
         }
 
         /* CHAT VIEW */
@@ -175,7 +189,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs, updateDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs, updateDoc, doc, deleteDoc, where, limit, getDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
@@ -206,10 +220,16 @@
         let currentSender = "admin";
         let activeChatListener = null;
         let mediaRecorder, audioChunks = [], isRecording = false;
+        let inboxListener = null;
 
         let isWindowActive = true;
         window.addEventListener('focus', () => { isWindowActive = true; });
         window.addEventListener('blur', () => { isWindowActive = false; });
+
+        // ==========================================
+        // 🔥 OPTIMIZATION: Cache + Pagination
+        // ==========================================
+        const PAGE_LIMIT = 50; // Sirf 50 messages load honge
 
         function getUserFriendlyName(docId) {
             let savedNames = localStorage.getItem('chatUserNames');
@@ -260,14 +280,52 @@
             }
         };
 
-        // 🔥 NEW: Delete User Function
-        window.deleteUser = async function(docId, userName) {
-            if (!confirm(`Are you sure you want to delete all chats for "${userName}"? This action cannot be undone!`)) {
+        // ==========================================
+        // 🔥 NEW: Clear Chat Function (Admin + User both sides)
+        // ==========================================
+        window.clearChat = async function(docId, userName) {
+            if (!confirm(`⚠️ Are you sure you want to clear ALL messages for "${userName}"? This cannot be undone!`)) {
                 return;
             }
 
             try {
-                // Step 1: Delete all messages in the sub-collection
+                const messagesRef = collection(db, "group_messages", docId, "messages");
+                const messagesSnapshot = await getDocs(messagesRef);
+                
+                const deletePromises = [];
+                messagesSnapshot.forEach((msgDoc) => {
+                    deletePromises.push(deleteDoc(doc(db, "group_messages", docId, "messages", msgDoc.id)));
+                });
+                
+                await Promise.all(deletePromises);
+                console.log(`✅ All messages cleared for ${docId}`);
+
+                // Update timestamp
+                await updateDoc(doc(db, "group_messages", docId), { lastUpdated: Date.now() });
+
+                // If currently viewing this chat, reload chat
+                if (activeDocId === docId) {
+                    chatBox.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Chat cleared. No messages.</div>";
+                }
+
+                alert(`✅ All messages for "${userName}" have been cleared.`);
+
+            } catch (error) {
+                console.error("Error clearing chat:", error);
+                alert("❌ Failed to clear chat. Please try again.");
+            }
+        };
+
+        // ==========================================
+        // 🔥 Delete User Function (Improved)
+        // ==========================================
+        window.deleteUser = async function(docId, userName) {
+            if (!confirm(`⚠️ Are you sure you want to DELETE "${userName}" and ALL their chats? This cannot be undone!`)) {
+                return;
+            }
+
+            try {
+                // Step 1: Delete all messages in sub-collection
                 const messagesRef = collection(db, "group_messages", docId, "messages");
                 const messagesSnapshot = await getDocs(messagesRef);
                 
@@ -279,7 +337,7 @@
                 await Promise.all(deletePromises);
                 console.log(`✅ All messages deleted for ${docId}`);
 
-                // Step 2: Delete the main document
+                // Step 2: Delete main document
                 await deleteDoc(doc(db, "group_messages", docId));
                 console.log(`✅ User ${docId} deleted successfully`);
 
@@ -304,57 +362,69 @@
             }
         };
 
+        // ==========================================
+        // 🔥 Optimized: Open Chat with Pagination + Cache
+        // ==========================================
         window.openChat = function(docId, userName) {
             activeDocId = docId;
             inboxView.style.display = 'none';
             chatView.style.display = 'flex';
             chatTitle.innerText = userName;
 
-            const q = query(collection(db, "group_messages", activeDocId, "messages"), orderBy("time_now", "asc"));
-            activeChatListener = onSnapshot(q, (snapshot) => {
+            // OPTIMIZATION: Use get() + limit() instead of onSnapshot for initial load
+            const messagesRef = collection(db, "group_messages", activeDocId, "messages");
+            const q = query(messagesRef, orderBy("time_now", "asc"), limit(PAGE_LIMIT));
+
+            // First load from cache (fast)
+            getDocs(q, { source: 'cache' }).then((snapshot) => {
                 chatBox.innerHTML = "";
-                let hasNewIncomingMsg = false;
-
-                snapshot.forEach((snapshotDoc) => {
-                    const data = snapshotDoc.data();
-
-                    if (data.sender === 'user') {
-                        if (data.status !== 'read') {
-                            hasNewIncomingMsg = true;
-                        }
-
-                        const docRef = doc(db, "group_messages", activeDocId, "messages", snapshotDoc.id);
-                        if (isWindowActive && data.status !== 'read') {
-                            updateDoc(docRef, { status: 'read' });
-                        } else if (!isWindowActive && (!data.status || data.status === 'sent')) {
-                            updateDoc(docRef, { status: 'delivered' });
-                        }
-                    }
-
-                    const timeLabel = data.time_label || getFormattedTime();
-                    const messageContent = data.file_url || data.content || data.message_text;
-                    renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
-                });
-
-                if (hasNewIncomingMsg) {
-                    msgSound.play().catch(e => {
-                        console.log("Audio autoplay blocked by browser. Click anywhere on page first.");
+                if (!snapshot.empty) {
+                    snapshot.forEach((snapshotDoc) => {
+                        const data = snapshotDoc.data();
+                        const timeLabel = data.time_label || getFormattedTime();
+                        const messageContent = data.file_url || data.content || data.message_text;
+                        renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
                     });
+                    chatBox.scrollTop = chatBox.scrollHeight;
                 }
+            }).catch(() => {
+                // If cache fails, load from server
+                getDocs(q, { source: 'server' }).then((snapshot) => {
+                    chatBox.innerHTML = "";
+                    snapshot.forEach((snapshotDoc) => {
+                        const data = snapshotDoc.data();
+                        const timeLabel = data.time_label || getFormattedTime();
+                        const messageContent = data.file_url || data.content || data.message_text;
+                        renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
+                    });
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                });
+            });
 
-                chatBox.scrollTop = chatBox.scrollHeight;
+            // OPTIMIZATION: Lightweight listener only for new messages (not all)
+            if (activeChatListener) {
+                activeChatListener();
+                activeChatListener = null;
+            }
+
+            // Only listen for new messages after the last loaded message
+            const lastMsgQuery = query(messagesRef, orderBy("time_now", "desc"), limit(1));
+            activeChatListener = onSnapshot(lastMsgQuery, (snapshot) => {
+                snapshot.docChanges().forEach((change) => {
+                    if (change.type === 'added') {
+                        const data = change.doc.data();
+                        const timeLabel = data.time_label || getFormattedTime();
+                        const messageContent = data.file_url || data.content || data.message_text;
+                        renderMessage(change.doc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
+                        chatBox.scrollTop = chatBox.scrollHeight;
+                    }
+                });
             });
         };
 
-        async function updateChatTimestamp(docId) {
-            const timestamp = Date.now();
-            try {
-                await updateDoc(doc(db, "group_messages", docId), { lastUpdated: timestamp });
-            } catch (error) {
-                console.error("Error updating timestamp:", error);
-            }
-        }
-
+        // ==========================================
+        // 🔥 Optimized: Load Inbox with Cache
+        // ==========================================
         async function loadInbox() {
             inboxView.style.display = 'flex';
             chatView.style.display = 'none';
@@ -366,113 +436,114 @@
             userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Loading conversations...</div>";
 
             try {
-                onSnapshot(collection(db, "group_messages"), (querySnapshot) => {
-                    userListDiv.innerHTML = "";
+                // OPTIMIZATION: Use get() instead of onSnapshot for initial load
+                const querySnapshot = await getDocs(collection(db, "group_messages"), { source: 'cache' });
+                renderInbox(querySnapshot);
 
-                    if (querySnapshot.empty) {
-                        userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>No active chats found.</div>";
-                        return;
-                    }
-
-                    const sortedDocs = [...querySnapshot.docs].sort((a, b) => {
-                        const aTime = a.data().lastUpdated || 0;
-                        const bTime = b.data().lastUpdated || 0;
-                        return bTime - aTime;
-                    });
-
-                    sortedDocs.forEach((documentSnapshot) => {
-                        const docId = documentSnapshot.id;
-                        const docData = documentSnapshot.data();
-                        const userName = getUserFriendlyName(docId);
-                        const activeStatus = docData.statusTag || "";
-
-                        let tagClass = "status-tag";
-                        if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
-                        else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
-                        else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
-                        else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
-                        else if (activeStatus !== "") tagClass += " custom";
-
-                        const itemDiv = document.createElement('div');
-                        itemDiv.className = 'user-item';
-                        itemDiv.id = `inbox-item-${docId}`;
-
-                        itemDiv.innerHTML = `
-                            <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
-                                <div class="user-avatar">🎓</div>
-                                <div class="user-details">
-                                    <div class="user-phone">${userName}</div>
-                                    <div class="user-subtitle">ID: ${docId.substring(0, 15)}...</div>
-                                </div>
-                                <div id="badge-${docId}" class="unread-badge" style="display: none;">0</div>
-                            </div>
-                            <div class="status-container">
-                                ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px; color:#aaa;">No tag</span>'}
-                                <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
-                                    <option value="" disabled selected>Assign status...</option>
-                                    <option value="Payment Pending">Payment Pending</option>
-                                    <option value="Plan 1">Plan 1</option>
-                                    <option value="Plan 2">Plan 2</option>
-                                    <option value="Completed">Completed</option>
-                                    <option value="custom">✍️ Custom Status...</option>
-                                </select>
-                                ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
-                                <!-- 🔥 DELETE BUTTON -->
-                                <button class="delete-user-btn" onclick="event.stopPropagation(); window.deleteUser('${docId}', '${userName}')">🗑 Delete</button>
-                            </div>
-                        `;
-                        userListDiv.appendChild(itemDiv);
-
-                        const messagesRef = collection(db, "group_messages", docId, "messages");
-                        onSnapshot(messagesRef, async (msgSnapshot) => {
-                            let unreadCount = 0;
-                            let lastMsgTime = 0;
-
-                            msgSnapshot.forEach((msgDoc) => {
-                                const msgData = msgDoc.data();
-                                if (msgData.sender === 'user' && msgData.status !== 'read') {
-                                    unreadCount++;
-                                }
-                                if (msgData.time_now > lastMsgTime) {
-                                    lastMsgTime = msgData.time_now;
-                                }
-                            });
-
-                            const latestMsg = msgSnapshot.docs.reduce((latest, doc) => {
-                                const data = doc.data();
-                                return data.time_now > (latest?.data()?.time_now || 0) ? doc : latest;
-                            }, null);
-
-                            if (latestMsg) {
-                                const latestData = latestMsg.data();
-                                const currentLastUpdated = docData.lastUpdated || 0;
-                                if (latestData.time_now > currentLastUpdated) {
-                                    await updateChatTimestamp(docId);
-                                }
-                            }
-
-                            const badge = document.getElementById(`badge-${docId}`);
-                            if (badge) {
-                                if (unreadCount > 0) {
-                                    badge.innerText = unreadCount;
-                                    badge.style.display = 'flex';
-                                } else {
-                                    badge.style.display = 'none';
-                                }
-                            }
-                        });
-                    });
+                // Then listen for changes (lightweight)
+                if (inboxListener) {
+                    inboxListener();
+                }
+                inboxListener = onSnapshot(collection(db, "group_messages"), (snapshot) => {
+                    renderInbox(snapshot);
                 });
+
             } catch (error) {
                 console.error("Error loading inbox: ", error);
-                userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: red;'>Failed to load chats.</div>";
+                // Fallback to server
+                try {
+                    const querySnapshot = await getDocs(collection(db, "group_messages"), { source: 'server' });
+                    renderInbox(querySnapshot);
+                } catch (e) {
+                    userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: red;'>Failed to load chats.</div>";
+                }
             }
+        }
+
+        function renderInbox(querySnapshot) {
+            userListDiv.innerHTML = "";
+
+            if (querySnapshot.empty) {
+                userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>No active chats found.</div>";
+                return;
+            }
+
+            const sortedDocs = [...querySnapshot.docs].sort((a, b) => {
+                const aTime = a.data().lastUpdated || 0;
+                const bTime = b.data().lastUpdated || 0;
+                return bTime - aTime;
+            });
+
+            sortedDocs.forEach((documentSnapshot) => {
+                const docId = documentSnapshot.id;
+                const docData = documentSnapshot.data();
+                const userName = getUserFriendlyName(docId);
+                const activeStatus = docData.statusTag || "";
+
+                let tagClass = "status-tag";
+                if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
+                else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
+                else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
+                else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
+                else if (activeStatus !== "") tagClass += " custom";
+
+                const itemDiv = document.createElement('div');
+                itemDiv.className = 'user-item';
+                itemDiv.id = `inbox-item-${docId}`;
+
+                itemDiv.innerHTML = `
+                    <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
+                        <div class="user-avatar">🎓</div>
+                        <div class="user-details">
+                            <div class="user-phone">${userName}</div>
+                            <div class="user-subtitle">ID: ${docId.substring(0, 15)}...</div>
+                        </div>
+                        <div id="badge-${docId}" class="unread-badge" style="display: none;">0</div>
+                    </div>
+                    <div class="status-container">
+                        ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px; color:#aaa;">No tag</span>'}
+                        <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
+                            <option value="" disabled selected>Assign status...</option>
+                            <option value="Payment Pending">Payment Pending</option>
+                            <option value="Plan 1">Plan 1</option>
+                            <option value="Plan 2">Plan 2</option>
+                            <option value="Completed">Completed</option>
+                            <option value="custom">✍️ Custom Status...</option>
+                        </select>
+                        ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
+                    </div>
+                    <div class="user-actions">
+                        <button class="action-btn clear" onclick="event.stopPropagation(); window.clearChat('${docId}', '${userName}')">🧹 Clear Chat</button>
+                        <button class="action-btn delete" onclick="event.stopPropagation(); window.deleteUser('${docId}', '${userName}')">🗑 Delete User</button>
+                    </div>
+                `;
+                userListDiv.appendChild(itemDiv);
+
+                // Unread badge count - optimized with lightweight listener
+                const messagesRef = collection(db, "group_messages", docId, "messages");
+                const unreadQuery = query(messagesRef, where("sender", "==", "user"), where("status", "!=", "read"));
+                onSnapshot(unreadQuery, (snapshot) => {
+                    const unreadCount = snapshot.size;
+                    const badge = document.getElementById(`badge-${docId}`);
+                    if (badge) {
+                        if (unreadCount > 0) {
+                            badge.innerText = unreadCount;
+                            badge.style.display = 'flex';
+                        } else {
+                            badge.style.display = 'none';
+                        }
+                    }
+                });
+            });
         }
 
         window.goBackToInbox = function() {
             loadInbox();
         };
 
+        // ==========================================
+        // 🔥 Render Message
+        // ==========================================
         function renderMessage(id, sender, type, content, timeStr, status) {
             const msgDiv = document.createElement('div');
             const isMe = sender === currentSender;
@@ -604,7 +675,7 @@
             };
 
             await addDoc(collection(db, "group_messages", activeDocId, "messages"), messageData);
-            await updateChatTimestamp(activeDocId);
+            await updateDoc(doc(db, "group_messages", activeDocId), { lastUpdated: timestamp });
             sendPushNotification(activeDocId, messageData.message_text);
         }
 
