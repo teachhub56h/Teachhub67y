@@ -191,7 +191,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs, getDocsFromCache, getDocsFromServer, updateDoc, doc, deleteDoc, where, limit, getCountFromServer } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+        import { getFirestore, collection, collectionGroup, addDoc, query, orderBy, onSnapshot, getDocs, getDocsFromCache, getDocsFromServer, updateDoc, doc, deleteDoc, where, limit, getCountFromServer } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
         import { getStorage, ref, uploadString, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js";
 
         const firebaseConfig = {
@@ -238,39 +238,71 @@
         const PAGE_LIMIT = 50; // Sirf 50 messages load honge
 
         // ==========================================
-        // 🔥 FIX #1: Unread badge listeners ab per-user
-        // sirf ek dafa bante hain aur track hote hain,
-        // taake har inbox re-render pe naye listeners
-        // dher na ho jayein (yehi quota khaane ki asal
-        // wajah thi — 380 snapshot listeners peak).
+        // 🔥 BIG FIX: Ek hi system-wide listener, N listeners nahi.
+        // Pehle har student ke liye alag onSnapshot listener banta
+        // tha — 200 students = 200 live listeners ek saath, jo
+        // Firestore aur browser dono ko slow kar deta tha aur
+        // updates deri se aate thay.
+        //
+        // Ab sirf EK collectionGroup listener har us student ke
+        // unread messages ko track karta hai, chahe 10 ho ya 1000.
+        // Yehi tareeqa hai jo WhatsApp/Telegram jaisi apps use
+        // karti hain — server-wide ek query, per-user nahi.
+        //
+        // ⚠️ SETUP ZAROORI: Firestore ko is query ke liye ek
+        // "collection group" composite index chahiye hoga. Pehli
+        // baar chalane par agar koi error console mein aaye jisme
+        // "create it here" wala link ho, us link ko click karke
+        // index bana lein (1 click, 1-2 minute mein ready ho jata
+        // hai). Ye sirf ek dafa karna hai.
         // ==========================================
-        const unreadListeners = {}; // { docId: unsubscribeFn }
-        const unreadCounts = {};    // { docId: number } — used to sort unread chats to the top
+        const unreadCounts = {}; // { docId: number } — used to sort unread chats to the top
+        let unreadSystemListener = null;
 
-        function attachUnreadListener(docId) {
-            if (unreadListeners[docId]) return; // already listening, skip
+        function attachGlobalUnreadListener() {
+            if (unreadSystemListener) return; // already running
 
-            const messagesRef = collection(db, "group_messages", docId, "messages");
-            const unreadQuery = query(messagesRef, where("sender", "==", "user"), where("status", "!=", "read"));
+            const unreadQuery = query(
+                collectionGroup(db, "messages"),
+                where("sender", "==", "user"),
+                where("status", "!=", "read")
+            );
 
-            const unsub = onSnapshot(unreadQuery, (snapshot) => {
-                const unreadCount = snapshot.size;
-                unreadCounts[docId] = unreadCount;
-                const badge = document.getElementById(`badge-${docId}`);
-                if (badge) {
-                    if (unreadCount > 0) {
-                        badge.innerText = unreadCount;
+            unreadSystemListener = onSnapshot(unreadQuery, (snapshot) => {
+                const freshCounts = {};
+                snapshot.forEach((msgDoc) => {
+                    // msgDoc.ref path is group_messages/{docId}/messages/{msgId}
+                    const parentDocId = msgDoc.ref.parent.parent ? msgDoc.ref.parent.parent.id : null;
+                    if (!parentDocId) return;
+                    freshCounts[parentDocId] = (freshCounts[parentDocId] || 0) + 1;
+                });
+
+                // Replace counts wholesale and refresh every visible badge
+                Object.keys(unreadCounts).forEach(k => delete unreadCounts[k]);
+                Object.assign(unreadCounts, freshCounts);
+
+                document.querySelectorAll('.unread-badge').forEach((badge) => {
+                    const docId = badge.id.replace('badge-', '');
+                    const count = unreadCounts[docId] || 0;
+                    if (count > 0) {
+                        badge.innerText = count;
                         badge.style.display = 'flex';
                     } else {
                         badge.style.display = 'none';
                     }
-                }
-                // WhatsApp-style: any change in unread count re-sorts the inbox
-                // so chats with unread messages stay pinned above read ones.
-                reorderInbox();
-            });
+                });
 
-            unreadListeners[docId] = unsub;
+                reorderInbox();
+            }, (error) => {
+                console.error("Unread listener error (may need a Firestore composite index — check console for a setup link):", error);
+            });
+        }
+
+        // Kept as a no-op shim so existing call sites don't break;
+        // unread tracking is now handled by the single global listener above.
+        function attachUnreadListener(docId) {}
+        function cleanupRemovedUnreadListeners(currentDocIds) {
+            currentDocIds.forEach(() => {}); // no per-user listeners to clean up anymore
         }
 
         // ==========================================
@@ -314,16 +346,6 @@
             } catch (error) {
                 console.error("Error marking messages as read:", error);
             }
-        }
-
-        function cleanupRemovedUnreadListeners(currentDocIds) {
-            Object.keys(unreadListeners).forEach((docId) => {
-                if (!currentDocIds.includes(docId)) {
-                    unreadListeners[docId]();
-                    delete unreadListeners[docId];
-                    delete unreadCounts[docId];
-                }
-            });
         }
 
         function getUserFriendlyName(docId) {
@@ -458,11 +480,8 @@
                     localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
                 }
 
-                // Step 3b: Stop and remove its unread listener
-                if (unreadListeners[docId]) {
-                    unreadListeners[docId]();
-                    delete unreadListeners[docId];
-                }
+                // Step 3b: Remove its unread count (no per-user listener to stop anymore)
+                delete unreadCounts[docId];
 
                 // Step 4: If currently viewing this chat, go back to inbox
                 if (activeDocId === docId) {
@@ -617,10 +636,6 @@
         function removeInboxItem(docId) {
             const itemDiv = document.getElementById(`inbox-item-${docId}`);
             if (itemDiv) itemDiv.remove();
-            if (unreadListeners[docId]) {
-                unreadListeners[docId]();
-                delete unreadListeners[docId];
-            }
             delete unreadCounts[docId];
         }
 
@@ -667,6 +682,8 @@
                 activeChatListener();
                 activeChatListener = null;
             }
+
+            attachGlobalUnreadListener();
 
             userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Loading conversations...</div>";
 
