@@ -245,6 +245,7 @@
         // wajah thi — 380 snapshot listeners peak).
         // ==========================================
         const unreadListeners = {}; // { docId: unsubscribeFn }
+        const unreadCounts = {};    // { docId: number } — used to sort unread chats to the top
 
         function attachUnreadListener(docId) {
             if (unreadListeners[docId]) return; // already listening, skip
@@ -254,6 +255,7 @@
 
             const unsub = onSnapshot(unreadQuery, (snapshot) => {
                 const unreadCount = snapshot.size;
+                unreadCounts[docId] = unreadCount;
                 const badge = document.getElementById(`badge-${docId}`);
                 if (badge) {
                     if (unreadCount > 0) {
@@ -263,9 +265,55 @@
                         badge.style.display = 'none';
                     }
                 }
+                // WhatsApp-style: any change in unread count re-sorts the inbox
+                // so chats with unread messages stay pinned above read ones.
+                reorderInbox();
             });
 
             unreadListeners[docId] = unsub;
+        }
+
+        // ==========================================
+        // 🔥 WhatsApp-style ordering: unread chats (any unread
+        // count > 0) always float above fully-read chats. Within
+        // each group, most recently active chat comes first. This
+        // runs on every new message and every read-status change,
+        // so a chat jumps to the top the moment it gets a new
+        // message, and stays on top until the admin opens it.
+        // ==========================================
+        function reorderInbox() {
+            const items = Array.from(userListDiv.children).filter(el => el.id && el.id.startsWith('inbox-item-'));
+            items.sort((a, b) => {
+                const aDocId = a.id.replace('inbox-item-', '');
+                const bDocId = b.id.replace('inbox-item-', '');
+                const aUnread = unreadCounts[aDocId] > 0 ? 1 : 0;
+                const bUnread = unreadCounts[bDocId] > 0 ? 1 : 0;
+                if (aUnread !== bUnread) return bUnread - aUnread; // unread first
+                const aTime = parseInt(a.dataset.lastupdated || '0', 10);
+                const bTime = parseInt(b.dataset.lastupdated || '0', 10);
+                return bTime - aTime; // most recent first
+            });
+            items.forEach(item => userListDiv.appendChild(item));
+        }
+
+        // ==========================================
+        // 🔥 Mark a student's messages as "seen" once the admin
+        // opens that chat. This clears their unread badge and
+        // drops the chat out of the unread-priority group.
+        // ==========================================
+        async function markMessagesAsRead(docId) {
+            try {
+                const messagesRef = collection(db, "group_messages", docId, "messages");
+                const unreadQuery = query(messagesRef, where("sender", "==", "user"), where("status", "!=", "read"));
+                const snapshot = await getDocs(unreadQuery);
+                const updates = [];
+                snapshot.forEach((msgDoc) => {
+                    updates.push(updateDoc(doc(db, "group_messages", docId, "messages", msgDoc.id), { status: "read" }));
+                });
+                await Promise.all(updates);
+            } catch (error) {
+                console.error("Error marking messages as read:", error);
+            }
         }
 
         function cleanupRemovedUnreadListeners(currentDocIds) {
@@ -273,6 +321,7 @@
                 if (!currentDocIds.includes(docId)) {
                     unreadListeners[docId]();
                     delete unreadListeners[docId];
+                    delete unreadCounts[docId];
                 }
             });
         }
@@ -437,6 +486,11 @@
             chatView.style.display = 'flex';
             chatTitle.innerText = userName;
 
+            // WhatsApp-style "seen": mark this student's unread messages as read
+            // now that the admin has opened the chat. This clears their badge
+            // and removes the chat from the unread-priority group in the inbox.
+            markMessagesAsRead(docId);
+
             const messagesRef = collection(db, "group_messages", activeDocId, "messages");
             const q = query(messagesRef, orderBy("time_now", "asc"), limit(PAGE_LIMIT));
 
@@ -551,17 +605,13 @@
                 itemDiv = document.createElement('div');
                 itemDiv.className = 'user-item';
                 itemDiv.id = `inbox-item-${docId}`;
+                userListDiv.appendChild(itemDiv);
             }
             itemDiv.innerHTML = buildInboxItemHtml(docId, docData);
-
-            // Keep list ordered by lastUpdated (most recent first) — move to top on update
-            if (userListDiv.firstChild !== itemDiv) {
-                userListDiv.insertBefore(itemDiv, userListDiv.firstChild);
-            } else if (isNew) {
-                userListDiv.insertBefore(itemDiv, userListDiv.firstChild);
-            }
+            itemDiv.dataset.lastupdated = docData.lastUpdated || 0;
 
             attachUnreadListener(docId);
+            reorderInbox();
         }
 
         function removeInboxItem(docId) {
@@ -571,6 +621,7 @@
                 unreadListeners[docId]();
                 delete unreadListeners[docId];
             }
+            delete unreadCounts[docId];
         }
 
         function refreshEmptyState() {
