@@ -92,40 +92,26 @@
             padding: 0 5px;
         }
 
-        /* ACTION BUTTONS */
-        .user-actions {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-top: 4px;
-            flex-wrap: wrap;
-        }
-        .action-btn {
-            font-size: 11px;
+        /* DELETE BUTTON */
+        .delete-user-btn {
+            font-size: 12px;
             padding: 4px 10px;
+            background: #c62828;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
+            margin-left: auto;
             transition: background 0.2s;
         }
-        .action-btn.delete {
-            background: #c62828;
-        }
-        .action-btn.delete:hover {
+        .delete-user-btn:hover {
             background: #b71c1c;
         }
-        .action-btn.clear {
-            background: #f57c00;
-        }
-        .action-btn.clear:hover {
-            background: #e65100;
-        }
-        .action-btn.optimize {
-            background: #2e7d32;
-        }
-        .action-btn.optimize:hover {
-            background: #1b5e20;
+        .user-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 4px;
         }
 
         /* CHAT VIEW */
@@ -178,8 +164,6 @@
         .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #54656f; display: flex; align-items: center; justify-content: center; }
         .icon-btn.recording { color: #ea0038; animation: blink 1s infinite; }
         .send-btn { background: #1B4F72; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
-        .header-icon-btn { background: none; border: none; color: white; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 6px; }
-        .header-icon-btn:hover { background: rgba(255,255,255,0.12); }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
         .media-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 2000; align-items: center; justify-content: center; padding: 16px; }
         .media-lightbox img, .media-lightbox video { max-width: 100%; max-height: 100%; border-radius: 6px; }
@@ -191,8 +175,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-        import { getFirestore, collection, collectionGroup, addDoc, query, orderBy, onSnapshot, getDocs, getDocsFromCache, getDocsFromServer, updateDoc, doc, deleteDoc, where, limit, getCountFromServer } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
-        import { getStorage, ref, uploadString, getDownloadURL, deleteObject } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-storage.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs, updateDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
@@ -205,7 +188,6 @@
 
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
-        const storage = getStorage(app);
 
         // Incoming message alert
         const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
@@ -219,134 +201,15 @@
         const sendBtn = document.getElementById('sendBtn');
         const mediaInput = document.getElementById('mediaInput');
         const voiceBtn = document.getElementById('voiceBtn');
-        const chatClearBtn = document.getElementById('chatClearBtn');
-        const chatDeleteBtn = document.getElementById('chatDeleteBtn');
 
         let activeDocId = "";
         let currentSender = "admin";
         let activeChatListener = null;
         let mediaRecorder, audioChunks = [], isRecording = false;
-        let inboxListener = null;
 
         let isWindowActive = true;
         window.addEventListener('focus', () => { isWindowActive = true; });
         window.addEventListener('blur', () => { isWindowActive = false; });
-
-        // ==========================================
-        // 🔥 OPTIMIZATION: Cache + Pagination
-        // ==========================================
-        const PAGE_LIMIT = 50; // Sirf 50 messages load honge
-
-        // ==========================================
-        // 🔥 BIG FIX: Ek hi system-wide listener, N listeners nahi.
-        // Pehle har student ke liye alag onSnapshot listener banta
-        // tha — 200 students = 200 live listeners ek saath, jo
-        // Firestore aur browser dono ko slow kar deta tha aur
-        // updates deri se aate thay.
-        //
-        // Ab sirf EK collectionGroup listener har us student ke
-        // unread messages ko track karta hai, chahe 10 ho ya 1000.
-        // Yehi tareeqa hai jo WhatsApp/Telegram jaisi apps use
-        // karti hain — server-wide ek query, per-user nahi.
-        //
-        // ⚠️ SETUP ZAROORI: Firestore ko is query ke liye ek
-        // "collection group" composite index chahiye hoga. Pehli
-        // baar chalane par agar koi error console mein aaye jisme
-        // "create it here" wala link ho, us link ko click karke
-        // index bana lein (1 click, 1-2 minute mein ready ho jata
-        // hai). Ye sirf ek dafa karna hai.
-        // ==========================================
-        const unreadCounts = {}; // { docId: number } — used to sort unread chats to the top
-        let unreadSystemListener = null;
-
-        function attachGlobalUnreadListener() {
-            if (unreadSystemListener) return; // already running
-
-            const unreadQuery = query(
-                collectionGroup(db, "messages"),
-                where("sender", "==", "user"),
-                where("status", "!=", "read")
-            );
-
-            unreadSystemListener = onSnapshot(unreadQuery, (snapshot) => {
-                const freshCounts = {};
-                snapshot.forEach((msgDoc) => {
-                    // msgDoc.ref path is group_messages/{docId}/messages/{msgId}
-                    const parentDocId = msgDoc.ref.parent.parent ? msgDoc.ref.parent.parent.id : null;
-                    if (!parentDocId) return;
-                    freshCounts[parentDocId] = (freshCounts[parentDocId] || 0) + 1;
-                });
-
-                // Replace counts wholesale and refresh every visible badge
-                Object.keys(unreadCounts).forEach(k => delete unreadCounts[k]);
-                Object.assign(unreadCounts, freshCounts);
-
-                document.querySelectorAll('.unread-badge').forEach((badge) => {
-                    const docId = badge.id.replace('badge-', '');
-                    const count = unreadCounts[docId] || 0;
-                    if (count > 0) {
-                        badge.innerText = count;
-                        badge.style.display = 'flex';
-                    } else {
-                        badge.style.display = 'none';
-                    }
-                });
-
-                reorderInbox();
-            }, (error) => {
-                console.error("Unread listener error (may need a Firestore composite index — check console for a setup link):", error);
-            });
-        }
-
-        // Kept as a no-op shim so existing call sites don't break;
-        // unread tracking is now handled by the single global listener above.
-        function attachUnreadListener(docId) {}
-        function cleanupRemovedUnreadListeners(currentDocIds) {
-            currentDocIds.forEach(() => {}); // no per-user listeners to clean up anymore
-        }
-
-        // ==========================================
-        // 🔥 WhatsApp-style ordering: unread chats (any unread
-        // count > 0) always float above fully-read chats. Within
-        // each group, most recently active chat comes first. This
-        // runs on every new message and every read-status change,
-        // so a chat jumps to the top the moment it gets a new
-        // message, and stays on top until the admin opens it.
-        // ==========================================
-        function reorderInbox() {
-            const items = Array.from(userListDiv.children).filter(el => el.id && el.id.startsWith('inbox-item-'));
-            items.sort((a, b) => {
-                const aDocId = a.id.replace('inbox-item-', '');
-                const bDocId = b.id.replace('inbox-item-', '');
-                const aUnread = unreadCounts[aDocId] > 0 ? 1 : 0;
-                const bUnread = unreadCounts[bDocId] > 0 ? 1 : 0;
-                if (aUnread !== bUnread) return bUnread - aUnread; // unread first
-                const aTime = parseInt(a.dataset.lastupdated || '0', 10);
-                const bTime = parseInt(b.dataset.lastupdated || '0', 10);
-                return bTime - aTime; // most recent first
-            });
-            items.forEach(item => userListDiv.appendChild(item));
-        }
-
-        // ==========================================
-        // 🔥 Mark a student's messages as "seen" once the admin
-        // opens that chat. This clears their unread badge and
-        // drops the chat out of the unread-priority group.
-        // ==========================================
-        async function markMessagesAsRead(docId) {
-            try {
-                const messagesRef = collection(db, "group_messages", docId, "messages");
-                const unreadQuery = query(messagesRef, where("sender", "==", "user"), where("status", "!=", "read"));
-                const snapshot = await getDocs(unreadQuery);
-                const updates = [];
-                snapshot.forEach((msgDoc) => {
-                    updates.push(updateDoc(doc(db, "group_messages", docId, "messages", msgDoc.id), { status: "read" }));
-                });
-                await Promise.all(updates);
-            } catch (error) {
-                console.error("Error marking messages as read:", error);
-            }
-        }
 
         function getUserFriendlyName(docId) {
             let savedNames = localStorage.getItem('chatUserNames');
@@ -397,78 +260,26 @@
             }
         };
 
-        // ==========================================
-        // 🔥 Clear Chat Function (Admin + User both sides)
-        // ==========================================
-        window.clearChat = async function(docId, userName) {
-            if (!confirm(`⚠️ Are you sure you want to clear ALL messages for "${userName}"? This cannot be undone!`)) {
-                return;
-            }
-
-            try {
-                const messagesRef = collection(db, "group_messages", docId, "messages");
-                const messagesSnapshot = await getDocs(messagesRef);
-
-                const deletePromises = [];
-                messagesSnapshot.forEach((msgDoc) => {
-                    const data = msgDoc.data();
-                    // FIX: also delete the actual media file from Storage, not just the
-                    // Firestore reference to it — otherwise Storage usage keeps growing.
-                    if (data.storage_path) {
-                        deletePromises.push(
-                            deleteObject(ref(storage, data.storage_path)).catch(() => {})
-                        );
-                    }
-                    deletePromises.push(deleteDoc(doc(db, "group_messages", docId, "messages", msgDoc.id)));
-                });
-
-                await Promise.all(deletePromises);
-                console.log(`✅ All messages (and their media) cleared for ${docId}`);
-
-                // Update timestamp
-                await updateDoc(doc(db, "group_messages", docId), { lastUpdated: Date.now() });
-
-                // If currently viewing this chat, reload chat
-                if (activeDocId === docId) {
-                    chatBox.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Chat cleared. No messages.</div>";
-                }
-
-                alert(`✅ All messages for "${userName}" have been cleared for both sides.`);
-
-            } catch (error) {
-                console.error("Error clearing chat:", error);
-                alert("❌ Failed to clear chat. Please try again.");
-            }
-        };
-
-        // ==========================================
-        // 🔥 Delete User Function
-        // ==========================================
+        // 🔥 NEW: Delete User Function
         window.deleteUser = async function(docId, userName) {
-            if (!confirm(`⚠️ Are you sure you want to DELETE "${userName}" and ALL their chats? This cannot be undone!`)) {
+            if (!confirm(`Are you sure you want to delete all chats for "${userName}"? This action cannot be undone!`)) {
                 return;
             }
 
             try {
-                // Step 1: Delete all messages in sub-collection (and their Storage media)
+                // Step 1: Delete all messages in the sub-collection
                 const messagesRef = collection(db, "group_messages", docId, "messages");
                 const messagesSnapshot = await getDocs(messagesRef);
-
+                
                 const deletePromises = [];
                 messagesSnapshot.forEach((msgDoc) => {
-                    const data = msgDoc.data();
-                    if (data.storage_path) {
-                        deletePromises.push(
-                            deleteObject(ref(storage, data.storage_path)).catch(() => {})
-                        );
-                    }
                     deletePromises.push(deleteDoc(doc(db, "group_messages", docId, "messages", msgDoc.id)));
                 });
-
+                
                 await Promise.all(deletePromises);
-                console.log(`✅ All messages and media deleted for ${docId}`);
+                console.log(`✅ All messages deleted for ${docId}`);
 
-                // Step 2: Delete main document
+                // Step 2: Delete the main document
                 await deleteDoc(doc(db, "group_messages", docId));
                 console.log(`✅ User ${docId} deleted successfully`);
 
@@ -479,9 +290,6 @@
                     delete savedNames[docId];
                     localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
                 }
-
-                // Step 3b: Remove its unread count (no per-user listener to stop anymore)
-                delete unreadCounts[docId];
 
                 // Step 4: If currently viewing this chat, go back to inbox
                 if (activeDocId === docId) {
@@ -496,183 +304,55 @@
             }
         };
 
-        // ==========================================
-        // 🔥 Open Chat with Pagination + Cache (fixed)
-        // ==========================================
         window.openChat = function(docId, userName) {
             activeDocId = docId;
             inboxView.style.display = 'none';
             chatView.style.display = 'flex';
             chatTitle.innerText = userName;
 
-            // WhatsApp-style "seen": mark this student's unread messages as read
-            // now that the admin has opened the chat. This clears their badge
-            // and removes the chat from the unread-priority group in the inbox.
-            markMessagesAsRead(docId);
-
-            const messagesRef = collection(db, "group_messages", activeDocId, "messages");
-            const q = query(messagesRef, orderBy("time_now", "asc"), limit(PAGE_LIMIT));
-
-            // FIX #2: getDocs() doesn't take a { source } option in the modular SDK.
-            // Use getDocsFromCache() / getDocsFromServer() directly instead.
-            getDocsFromCache(q).then((snapshot) => {
+            const q = query(collection(db, "group_messages", activeDocId, "messages"), orderBy("time_now", "asc"));
+            activeChatListener = onSnapshot(q, (snapshot) => {
                 chatBox.innerHTML = "";
-                if (!snapshot.empty) {
-                    snapshot.forEach((snapshotDoc) => {
-                        const data = snapshotDoc.data();
-                        const timeLabel = data.time_label || getFormattedTime();
-                        const messageContent = data.file_url || data.content || data.message_text;
-                        renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
-                    });
-                    chatBox.scrollTop = chatBox.scrollHeight;
-                } else {
-                    // Cache empty (first time opening this chat) -> pull from server
-                    return getDocsFromServer(q).then((serverSnapshot) => {
-                        chatBox.innerHTML = "";
-                        serverSnapshot.forEach((snapshotDoc) => {
-                            const data = snapshotDoc.data();
-                            const timeLabel = data.time_label || getFormattedTime();
-                            const messageContent = data.file_url || data.content || data.message_text;
-                            renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
-                        });
-                        chatBox.scrollTop = chatBox.scrollHeight;
+                let hasNewIncomingMsg = false;
+
+                snapshot.forEach((snapshotDoc) => {
+                    const data = snapshotDoc.data();
+
+                    if (data.sender === 'user') {
+                        if (data.status !== 'read') {
+                            hasNewIncomingMsg = true;
+                        }
+
+                        const docRef = doc(db, "group_messages", activeDocId, "messages", snapshotDoc.id);
+                        if (isWindowActive && data.status !== 'read') {
+                            updateDoc(docRef, { status: 'read' });
+                        } else if (!isWindowActive && (!data.status || data.status === 'sent')) {
+                            updateDoc(docRef, { status: 'delivered' });
+                        }
+                    }
+
+                    const timeLabel = data.time_label || getFormattedTime();
+                    const messageContent = data.file_url || data.content || data.message_text;
+                    renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
+                });
+
+                if (hasNewIncomingMsg) {
+                    msgSound.play().catch(e => {
+                        console.log("Audio autoplay blocked by browser. Click anywhere on page first.");
                     });
                 }
-            }).catch(() => {
-                getDocsFromServer(q).then((snapshot) => {
-                    chatBox.innerHTML = "";
-                    snapshot.forEach((snapshotDoc) => {
-                        const data = snapshotDoc.data();
-                        const timeLabel = data.time_label || getFormattedTime();
-                        const messageContent = data.file_url || data.content || data.message_text;
-                        renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
-                    });
-                    chatBox.scrollTop = chatBox.scrollHeight;
-                });
-            });
 
-            // Real-time listener only for new messages (ticks / new msgs still fully live)
-            if (activeChatListener) {
-                activeChatListener();
-                activeChatListener = null;
-            }
-
-            const lastMsgQuery = query(messagesRef, orderBy("time_now", "desc"), limit(1));
-            activeChatListener = onSnapshot(lastMsgQuery, (snapshot) => {
-                snapshot.docChanges().forEach((change) => {
-                    if (change.type === 'added') {
-                        const data = change.doc.data();
-                        const timeLabel = data.time_label || getFormattedTime();
-                        const messageContent = data.file_url || data.content || data.message_text;
-                        renderMessage(change.doc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
-                        chatBox.scrollTop = chatBox.scrollHeight;
-                    }
-                });
+                chatBox.scrollTop = chatBox.scrollHeight;
             });
         };
 
-        // ==========================================
-        // 🔥 Load Inbox — incremental rendering (WhatsApp-style)
-        // Instead of rebuilding the entire list on every change,
-        // we only touch the specific item that changed. With 100+
-        // students this is the difference between a laggy re-render
-        // and an instant update.
-        // ==========================================
-        function buildInboxItemHtml(docId, docData) {
-            const userName = getUserFriendlyName(docId);
-            const activeStatus = docData.statusTag || "";
-
-            let tagClass = "status-tag";
-            if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
-            else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
-            else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
-            else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
-            else if (activeStatus !== "") tagClass += " custom";
-
-            return `
-                <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
-                    <div class="user-avatar">🎓</div>
-                    <div class="user-details">
-                        <div class="user-phone">${userName}</div>
-                        <div class="user-subtitle">ID: ${docId.substring(0, 15)}...</div>
-                    </div>
-                    <div id="badge-${docId}" class="unread-badge" style="display: none;">0</div>
-                </div>
-                <div class="status-container">
-                    ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px; color:#aaa;">No tag</span>'}
-                    <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
-                        <option value="" disabled selected>Assign status...</option>
-                        <option value="Payment Pending">Payment Pending</option>
-                        <option value="Plan 1">Plan 1</option>
-                        <option value="Plan 2">Plan 2</option>
-                        <option value="Completed">Completed</option>
-                        <option value="custom">✍️ Custom Status...</option>
-                    </select>
-                    ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
-                </div>
-                <div class="user-actions">
-                    <button class="action-btn clear" onclick="event.stopPropagation(); window.clearChat('${docId}', '${userName}')">🧹 Clear Chat</button>
-                    <button class="action-btn delete" onclick="event.stopPropagation(); window.deleteUser('${docId}', '${userName}')">🗑 Delete User</button>
-                </div>
-            `;
-        }
-
-        function upsertInboxItem(docId, docData) {
-            let itemDiv = document.getElementById(`inbox-item-${docId}`);
-            const isNew = !itemDiv;
-            if (isNew) {
-                itemDiv = document.createElement('div');
-                itemDiv.className = 'user-item';
-                itemDiv.id = `inbox-item-${docId}`;
-                userListDiv.appendChild(itemDiv);
+        async function updateChatTimestamp(docId) {
+            const timestamp = Date.now();
+            try {
+                await updateDoc(doc(db, "group_messages", docId), { lastUpdated: timestamp });
+            } catch (error) {
+                console.error("Error updating timestamp:", error);
             }
-            itemDiv.innerHTML = buildInboxItemHtml(docId, docData);
-            itemDiv.dataset.lastupdated = docData.lastUpdated || 0;
-
-            attachUnreadListener(docId);
-            reorderInbox();
-        }
-
-        function removeInboxItem(docId) {
-            const itemDiv = document.getElementById(`inbox-item-${docId}`);
-            if (itemDiv) itemDiv.remove();
-            delete unreadCounts[docId];
-        }
-
-        function refreshEmptyState() {
-            if (userListDiv.children.length === 0) {
-                userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>No active chats found.</div>";
-            } else {
-                const placeholder = userListDiv.querySelector('.user-list > div');
-                // remove any leftover placeholder text nodes that aren't real items
-                Array.from(userListDiv.children).forEach(child => {
-                    if (!child.id || !child.id.startsWith('inbox-item-')) child.remove();
-                });
-            }
-        }
-
-        function applyInboxSnapshot(snapshot, isInitialFullLoad) {
-            if (isInitialFullLoad) {
-                userListDiv.innerHTML = "";
-                const sortedDocs = [...snapshot.docs].sort((a, b) => {
-                    const aTime = a.data().lastUpdated || 0;
-                    const bTime = b.data().lastUpdated || 0;
-                    return bTime - aTime;
-                });
-                sortedDocs.forEach((d) => upsertInboxItem(d.id, d.data()));
-                cleanupRemovedUnreadListeners(sortedDocs.map(d => d.id));
-                refreshEmptyState();
-                return;
-            }
-
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === 'added' || change.type === 'modified') {
-                    upsertInboxItem(change.doc.id, change.doc.data());
-                } else if (change.type === 'removed') {
-                    removeInboxItem(change.doc.id);
-                }
-            });
-            refreshEmptyState();
         }
 
         async function loadInbox() {
@@ -683,39 +363,116 @@
                 activeChatListener = null;
             }
 
-            attachGlobalUnreadListener();
-
             userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Loading conversations...</div>";
 
-            let initialLoadDone = false;
-
             try {
-                const querySnapshot = await getDocsFromCache(collection(db, "group_messages"));
-                applyInboxSnapshot(querySnapshot, true);
-                initialLoadDone = true;
-            } catch (error) {
-                console.log("No cache yet, will load from first server snapshot.");
-            }
+                onSnapshot(collection(db, "group_messages"), (querySnapshot) => {
+                    userListDiv.innerHTML = "";
 
-            if (inboxListener) {
-                inboxListener();
-            }
-            inboxListener = onSnapshot(collection(db, "group_messages"), (snapshot) => {
-                applyInboxSnapshot(snapshot, !initialLoadDone);
-                initialLoadDone = true;
-            }, (error) => {
-                console.error("Inbox listener error:", error);
+                    if (querySnapshot.empty) {
+                        userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>No active chats found.</div>";
+                        return;
+                    }
+
+                    const sortedDocs = [...querySnapshot.docs].sort((a, b) => {
+                        const aTime = a.data().lastUpdated || 0;
+                        const bTime = b.data().lastUpdated || 0;
+                        return bTime - aTime;
+                    });
+
+                    sortedDocs.forEach((documentSnapshot) => {
+                        const docId = documentSnapshot.id;
+                        const docData = documentSnapshot.data();
+                        const userName = getUserFriendlyName(docId);
+                        const activeStatus = docData.statusTag || "";
+
+                        let tagClass = "status-tag";
+                        if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
+                        else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
+                        else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
+                        else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
+                        else if (activeStatus !== "") tagClass += " custom";
+
+                        const itemDiv = document.createElement('div');
+                        itemDiv.className = 'user-item';
+                        itemDiv.id = `inbox-item-${docId}`;
+
+                        itemDiv.innerHTML = `
+                            <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
+                                <div class="user-avatar">🎓</div>
+                                <div class="user-details">
+                                    <div class="user-phone">${userName}</div>
+                                    <div class="user-subtitle">ID: ${docId.substring(0, 15)}...</div>
+                                </div>
+                                <div id="badge-${docId}" class="unread-badge" style="display: none;">0</div>
+                            </div>
+                            <div class="status-container">
+                                ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px; color:#aaa;">No tag</span>'}
+                                <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
+                                    <option value="" disabled selected>Assign status...</option>
+                                    <option value="Payment Pending">Payment Pending</option>
+                                    <option value="Plan 1">Plan 1</option>
+                                    <option value="Plan 2">Plan 2</option>
+                                    <option value="Completed">Completed</option>
+                                    <option value="custom">✍️ Custom Status...</option>
+                                </select>
+                                ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
+                                <!-- 🔥 DELETE BUTTON -->
+                                <button class="delete-user-btn" onclick="event.stopPropagation(); window.deleteUser('${docId}', '${userName}')">🗑 Delete</button>
+                            </div>
+                        `;
+                        userListDiv.appendChild(itemDiv);
+
+                        const messagesRef = collection(db, "group_messages", docId, "messages");
+                        onSnapshot(messagesRef, async (msgSnapshot) => {
+                            let unreadCount = 0;
+                            let lastMsgTime = 0;
+
+                            msgSnapshot.forEach((msgDoc) => {
+                                const msgData = msgDoc.data();
+                                if (msgData.sender === 'user' && msgData.status !== 'read') {
+                                    unreadCount++;
+                                }
+                                if (msgData.time_now > lastMsgTime) {
+                                    lastMsgTime = msgData.time_now;
+                                }
+                            });
+
+                            const latestMsg = msgSnapshot.docs.reduce((latest, doc) => {
+                                const data = doc.data();
+                                return data.time_now > (latest?.data()?.time_now || 0) ? doc : latest;
+                            }, null);
+
+                            if (latestMsg) {
+                                const latestData = latestMsg.data();
+                                const currentLastUpdated = docData.lastUpdated || 0;
+                                if (latestData.time_now > currentLastUpdated) {
+                                    await updateChatTimestamp(docId);
+                                }
+                            }
+
+                            const badge = document.getElementById(`badge-${docId}`);
+                            if (badge) {
+                                if (unreadCount > 0) {
+                                    badge.innerText = unreadCount;
+                                    badge.style.display = 'flex';
+                                } else {
+                                    badge.style.display = 'none';
+                                }
+                            }
+                        });
+                    });
+                });
+            } catch (error) {
+                console.error("Error loading inbox: ", error);
                 userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: red;'>Failed to load chats.</div>";
-            });
+            }
         }
 
         window.goBackToInbox = function() {
             loadInbox();
         };
 
-        // ==========================================
-        // 🔥 Render Message
-        // ==========================================
         function renderMessage(id, sender, type, content, timeStr, status) {
             const msgDiv = document.createElement('div');
             const isMe = sender === currentSender;
@@ -833,7 +590,7 @@
             }
         }
 
-        async function sendMessageToFirebase(type, content, storagePath) {
+        async function sendMessageToFirebase(type, content) {
             if (!activeDocId) return;
             const timestamp = Date.now();
             const messageData = {
@@ -843,76 +600,28 @@
                 time_label: getFormattedTime(),
                 status: "sent",
                 file_url: type !== 'text' ? content : "",
-                storage_path: storagePath || "",
                 message_text: type === 'text' ? content : `Sent a ${type}`
             };
 
             await addDoc(collection(db, "group_messages", activeDocId, "messages"), messageData);
-            await updateDoc(doc(db, "group_messages", activeDocId), { lastUpdated: timestamp });
+            await updateChatTimestamp(activeDocId);
             sendPushNotification(activeDocId, messageData.message_text);
         }
 
         sendBtn.addEventListener('click', () => { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } });
         msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } } });
 
-        chatClearBtn.addEventListener('click', () => {
-            if (activeDocId) window.clearChat(activeDocId, chatTitle.innerText);
-        });
-        chatDeleteBtn.addEventListener('click', () => {
-            if (activeDocId) window.deleteUser(activeDocId, chatTitle.innerText);
-        });
-
         const toBase64 = file => new Promise((resolve, reject) => {
             const reader = new FileReader(); reader.readAsDataURL(file);
             reader.onload = () => resolve(reader.result); reader.onerror = error => reject(error);
         });
 
-        // ==========================================
-        // 🔥 FIX #3 (big one): Media no longer stored as base64
-        // text inside Firestore documents. It's uploaded to
-        // Firebase Storage (CDN-backed, fast) and only a small
-        // download URL is saved in Firestore. This is the same
-        // pattern WhatsApp/real chat apps use, and it's the
-        // single biggest reason the app was feeling slow —
-        // Firestore reads/listeners were dragging megabytes of
-        // base64 text through every chat load and every snapshot.
-        // ==========================================
-        const MAX_FILE_BYTES = 10 * 1024 * 1024; // 10MB raw file, Storage has no 1MB doc limit
-
-        function showUploadingBubble() {
-            const bubble = document.createElement('div');
-            bubble.className = 'msg sent-by-me';
-            bubble.id = 'uploading-bubble';
-            bubble.innerHTML = `<span>Sending...</span>`;
-            chatBox.appendChild(bubble);
-            chatBox.scrollTop = chatBox.scrollHeight;
-            return bubble;
-        }
-
-        async function uploadMediaAndSend(fileType, base64, extension) {
-            const uploadingBubble = showUploadingBubble();
-            try {
-                const filePath = `chat_media/${activeDocId}/${Date.now()}_${Math.random().toString(36).slice(2)}.${extension}`;
-                const storageRef = ref(storage, filePath);
-                await uploadString(storageRef, base64, 'data_url');
-                const downloadUrl = await getDownloadURL(storageRef);
-                uploadingBubble.remove();
-                sendMessageToFirebase(fileType, downloadUrl, filePath);
-            } catch (error) {
-                console.error("Media upload failed:", error);
-                uploadingBubble.remove();
-                alert("❌ Media upload failed. Please check your connection and try again.");
-            }
-        }
-
         mediaInput.addEventListener('change', async (e) => {
             const file = e.target.files[0]; if (!file) return;
-            if (file.size > MAX_FILE_BYTES) { alert("File size limit is 10MB."); return; }
+            if (file.size > 1548576) { alert("File size limit is 1.5MB."); return; }
             let fileType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'text';
-            const extension = (file.name.split('.').pop() || 'dat').toLowerCase();
             const base64 = await toBase64(file);
-            uploadMediaAndSend(fileType, base64, extension);
-            mediaInput.value = "";
+            sendMessageToFirebase(fileType, base64);
         });
 
         voiceBtn.addEventListener('click', async () => {
@@ -924,8 +633,7 @@
                     mediaRecorder.onstop = async () => {
                         const blob = new Blob(audioChunks, { type: 'audio/mp3' });
                         const base64 = await toBase64(blob);
-                        uploadMediaAndSend('audio', base64, 'mp3');
-                        stream.getTracks().forEach(track => track.stop());
+                        sendMessageToFirebase('audio', base64);
                     };
                     mediaRecorder.start(); isRecording = true; voiceBtn.classList.add('recording'); voiceBtn.innerText = "🛑";
                 }
@@ -953,8 +661,6 @@
                 <div class="name" id="chatTitle">Support Panel</div>
                 <div class="status">active chat session</div>
             </div>
-            <button class="header-icon-btn" id="chatClearBtn" title="Clear Chat">🧹</button>
-            <button class="header-icon-btn" id="chatDeleteBtn" title="Delete User">🗑</button>
         </div>
         <div class="chat-messages" id="chatBox"></div>
         <div class="chat-input-area">
