@@ -731,6 +731,21 @@
                 userListDiv.appendChild(itemDiv);
                 itemDiv.innerHTML = buildInboxItemHtml(docId, docData);
                 itemDiv.dataset.statustag = newStatusTag;
+                // 🔥 RACE-CONDITION FIX: the unread-count listener and the
+                // inbox-list listener run independently. If a student's
+                // unread count was already known (they had a message
+                // pending before this card existed), the freshly created
+                // badge div defaults to hidden — sync it immediately so
+                // that student doesn't silently disappear from the
+                // unread list until they send another new message.
+                const newBadge = document.getElementById(`badge-${docId}`);
+                if (newBadge) {
+                    const count = unreadCounts[docId] || 0;
+                    if (count > 0) {
+                        newBadge.innerText = count;
+                        newBadge.style.display = 'flex';
+                    }
+                }
             } else if (itemDiv.dataset.statustag !== newStatusTag) {
                 // 🔥 PERFORMANCE FIX: only rebuild the inner HTML (select dropdown,
                 // buttons, tag) when the status tag actually changed. Previously
@@ -784,6 +799,21 @@
                 sortedDocs.forEach((d) => upsertInboxItem(d.id, d.data()));
                 cleanupRemovedUnreadListeners(sortedDocs.map(d => d.id));
                 refreshEmptyState();
+
+                // 🔥 Safety-net reconciliation: re-apply every currently-known
+                // unread count to its badge one more time after the full list
+                // exists. This is a one-time, cheap pass (only runs on initial
+                // load, not per-message) that guarantees no student's pending
+                // unread messages get silently missed regardless of which
+                // listener happened to fire first.
+                Object.keys(unreadCounts).forEach((docId) => {
+                    const badge = document.getElementById(`badge-${docId}`);
+                    if (badge && unreadCounts[docId] > 0) {
+                        badge.innerText = unreadCounts[docId];
+                        badge.style.display = 'flex';
+                    }
+                });
+                scheduleReorder();
                 return;
             }
 
