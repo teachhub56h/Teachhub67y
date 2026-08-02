@@ -25,15 +25,44 @@
             position: relative;
         }
         .user-item:hover { background: #f5f6f6; }
+        .user-item.inactive { background: #fff3e0; border-left: 4px solid #f57c00; }
 
         .user-clickable-area {
             display: flex; align-items: center; gap: 15px; width: 100%; cursor: pointer;
         }
 
-        .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #1B4F72; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; }
-        .user-details { flex: 1; }
+        .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #1B4F72; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; flex-shrink: 0; }
+        .user-details { flex: 1; min-width: 0; }
         .user-phone { font-size: 15px; font-weight: 600; color: #16232e; }
         .user-subtitle { font-size: 12px; color: #6b7a85; margin-top: 2px; }
+        .user-preview { font-size: 13px; color: #6b7a85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+        .user-time { font-size: 11px; color: #6b7a85; margin-top: 2px; }
+
+        .inactive-label {
+            font-size: 10px;
+            font-weight: bold;
+            color: #e65100;
+            background: #fff3e0;
+            padding: 2px 8px;
+            border-radius: 12px;
+            border: 1px solid #f57c00;
+            margin-left: 8px;
+        }
+
+        .unread-badge {
+            background-color: #1B84D8;
+            color: white;
+            font-size: 12px;
+            font-weight: bold;
+            min-width: 22px;
+            height: 22px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0 6px;
+            flex-shrink: 0;
+        }
 
         /* STATUS TAGS */
         .status-container {
@@ -78,41 +107,26 @@
             cursor: pointer;
         }
 
-        .unread-badge {
-            background-color: #1B84D8;
-            color: white;
-            font-size: 11px;
-            font-weight: bold;
-            min-width: 20px;
-            height: 20px;
-            border-radius: 50%;
+        .user-actions {
             display: flex;
             align-items: center;
-            justify-content: center;
-            padding: 0 5px;
+            gap: 6px;
+            margin-top: 4px;
+            flex-wrap: wrap;
         }
-
-        /* DELETE BUTTON */
-        .delete-user-btn {
-            font-size: 12px;
+        .action-btn {
+            font-size: 11px;
             padding: 4px 10px;
-            background: #c62828;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
-            margin-left: auto;
             transition: background 0.2s;
         }
-        .delete-user-btn:hover {
-            background: #b71c1c;
-        }
-        .user-actions {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 4px;
-        }
+        .action-btn.delete { background: #c62828; }
+        .action-btn.delete:hover { background: #b71c1c; }
+        .action-btn.clear { background: #f57c00; }
+        .action-btn.clear:hover { background: #e65100; }
 
         /* CHAT VIEW */
         #chat-view { display: none; flex-direction: column; height: 100%; }
@@ -175,7 +189,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs, updateDoc, doc, deleteDoc } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs, updateDoc, doc, deleteDoc, where } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
 
         const firebaseConfig = {
             apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
@@ -211,6 +225,16 @@
         window.addEventListener('focus', () => { isWindowActive = true; });
         window.addEventListener('blur', () => { isWindowActive = false; });
 
+        // ==========================================
+        // 🔥 CONFIG: Auto-delete inactive users after 3 days
+        // ==========================================
+        const INACTIVE_DAYS = 3;
+        const INACTIVE_MS = INACTIVE_DAYS * 24 * 60 * 60 * 1000; // 3 days in milliseconds
+        const CHECK_INTERVAL = 60 * 60 * 1000; // Check every 1 hour
+
+        // ==========================================
+        // 🔥 GET USER NAME
+        // ==========================================
         function getUserFriendlyName(docId) {
             let savedNames = localStorage.getItem('chatUserNames');
             savedNames = savedNames ? JSON.parse(savedNames) : {};
@@ -231,6 +255,9 @@
             return newName;
         }
 
+        // ==========================================
+        // 🔥 UPDATE STATUS
+        // ==========================================
         async function updateCustomerStatus(docId, newStatus) {
             try {
                 const docRef = doc(db, "group_messages", docId);
@@ -260,14 +287,12 @@
             }
         };
 
-        // 🔥 NEW: Delete User Function
-        window.deleteUser = async function(docId, userName) {
-            if (!confirm(`Are you sure you want to delete all chats for "${userName}"? This action cannot be undone!`)) {
-                return;
-            }
-
+        // ==========================================
+        // 🔥 DELETE USER (Complete cleanup)
+        // ==========================================
+        async function deleteUserCompletely(docId, userName) {
             try {
-                // Step 1: Delete all messages in the sub-collection
+                // Step 1: Delete all messages in sub-collection
                 const messagesRef = collection(db, "group_messages", docId, "messages");
                 const messagesSnapshot = await getDocs(messagesRef);
                 
@@ -275,7 +300,6 @@
                 messagesSnapshot.forEach((msgDoc) => {
                     deletePromises.push(deleteDoc(doc(db, "group_messages", docId, "messages", msgDoc.id)));
                 });
-                
                 await Promise.all(deletePromises);
                 console.log(`✅ All messages deleted for ${docId}`);
 
@@ -296,14 +320,75 @@
                     goBackToInbox();
                 }
 
-                alert(`✅ User "${userName}" and all their messages have been deleted.`);
-
+                return true;
             } catch (error) {
                 console.error("Error deleting user:", error);
+                return false;
+            }
+        }
+
+        // ==========================================
+        // 🔥 MANUAL DELETE (From UI)
+        // ==========================================
+        window.deleteUser = async function(docId, userName) {
+            if (!confirm(`⚠️ Are you sure you want to DELETE "${userName}" and ALL their chats? This cannot be undone!`)) {
+                return;
+            }
+            const success = await deleteUserCompletely(docId, userName);
+            if (success) {
+                alert(`✅ User "${userName}" and all their messages have been deleted.`);
+            } else {
                 alert("❌ Failed to delete user. Please try again.");
             }
         };
 
+        // ==========================================
+        // 🔥 AUTO-DELETE INACTIVE USERS (3 days)
+        // ==========================================
+        async function autoDeleteInactiveUsers() {
+            console.log("🔍 Checking for inactive users...");
+            try {
+                const querySnapshot = await getDocs(collection(db, "group_messages"));
+                const now = Date.now();
+                let deletedCount = 0;
+
+                for (const docSnapshot of querySnapshot.docs) {
+                    const docId = docSnapshot.id;
+                    const docData = docSnapshot.data();
+                    const lastUpdated = docData.lastUpdated || 0;
+
+                    // Check if user has been inactive for more than INACTIVE_MS
+                    if (now - lastUpdated > INACTIVE_MS) {
+                        const userName = getUserFriendlyName(docId);
+                        console.log(`🗑️ User "${userName}" (${docId}) is inactive. Auto-deleting...`);
+                        const success = await deleteUserCompletely(docId, userName);
+                        if (success) {
+                            deletedCount++;
+                            console.log(`✅ Auto-deleted inactive user: ${userName}`);
+                        }
+                    }
+                }
+
+                if (deletedCount > 0) {
+                    console.log(`✅ Total ${deletedCount} inactive users auto-deleted.`);
+                } else {
+                    console.log("✅ No inactive users found.");
+                }
+
+            } catch (error) {
+                console.error("❌ Error during auto-delete check:", error);
+            }
+        }
+
+        // Run auto-delete check every hour
+        setInterval(autoDeleteInactiveUsers, CHECK_INTERVAL);
+
+        // Also run once when page loads
+        setTimeout(autoDeleteInactiveUsers, 5000); // Wait 5 seconds after load
+
+        // ==========================================
+        // 🔥 OPEN CHAT
+        // ==========================================
         window.openChat = function(docId, userName) {
             activeDocId = docId;
             inboxView.style.display = 'none';
@@ -311,6 +396,13 @@
             chatTitle.innerText = userName;
 
             const q = query(collection(db, "group_messages", activeDocId, "messages"), orderBy("time_now", "asc"));
+            if (activeChatListener) {
+                activeChatListener();
+                activeChatListener = null;
+            }
+
+            chatBox.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Loading messages...</div>";
+
             activeChatListener = onSnapshot(q, (snapshot) => {
                 chatBox.innerHTML = "";
                 let hasNewIncomingMsg = false;
@@ -337,9 +429,7 @@
                 });
 
                 if (hasNewIncomingMsg) {
-                    msgSound.play().catch(e => {
-                        console.log("Audio autoplay blocked by browser. Click anywhere on page first.");
-                    });
+                    msgSound.play().catch(e => console.log("Audio blocked"));
                 }
 
                 chatBox.scrollTop = chatBox.scrollHeight;
@@ -355,6 +445,9 @@
             }
         }
 
+        // ==========================================
+        // 🔥 LOAD INBOX
+        // ==========================================
         async function loadInbox() {
             inboxView.style.display = 'flex';
             chatView.style.display = 'none';
@@ -374,6 +467,7 @@
                         return;
                     }
 
+                    const now = Date.now();
                     const sortedDocs = [...querySnapshot.docs].sort((a, b) => {
                         const aTime = a.data().lastUpdated || 0;
                         const bTime = b.data().lastUpdated || 0;
@@ -385,6 +479,10 @@
                         const docData = documentSnapshot.data();
                         const userName = getUserFriendlyName(docId);
                         const activeStatus = docData.statusTag || "";
+                        const lastUpdated = docData.lastUpdated || 0;
+                        
+                        // Check if user is inactive (no message in last 3 days)
+                        const isInactive = (now - lastUpdated) > INACTIVE_MS;
 
                         let tagClass = "status-tag";
                         if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
@@ -394,15 +492,46 @@
                         else if (activeStatus !== "") tagClass += " custom";
 
                         const itemDiv = document.createElement('div');
-                        itemDiv.className = 'user-item';
+                        itemDiv.className = `user-item ${isInactive ? 'inactive' : ''}`;
                         itemDiv.id = `inbox-item-${docId}`;
+
+                        // Get last message preview
+                        let lastMessage = "No messages yet";
+                        let lastMessageTime = "";
+                        const lastMsgQuery = query(
+                            collection(db, "group_messages", docId, "messages"),
+                            orderBy("time_now", "desc"),
+                            limit(1)
+                        );
+                        getDocs(lastMsgQuery).then((snapshot) => {
+                            if (!snapshot.empty) {
+                                const data = snapshot.docs[0].data();
+                                lastMessage = data.message_text || data.file_url || "Media";
+                                if (data.file_url && data.type !== 'text') {
+                                    lastMessage = `📎 ${data.type}`;
+                                }
+                                lastMessageTime = data.time_label || "";
+                                const previewEl = document.getElementById(`preview-${docId}`);
+                                if (previewEl) {
+                                    previewEl.innerText = lastMessage;
+                                }
+                                const timeEl = document.getElementById(`time-${docId}`);
+                                if (timeEl) {
+                                    timeEl.innerText = lastMessageTime;
+                                }
+                            }
+                        });
 
                         itemDiv.innerHTML = `
                             <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
                                 <div class="user-avatar">🎓</div>
                                 <div class="user-details">
-                                    <div class="user-phone">${userName}</div>
-                                    <div class="user-subtitle">ID: ${docId.substring(0, 15)}...</div>
+                                    <div class="user-phone">
+                                        ${userName}
+                                        ${isInactive ? '<span class="inactive-label">⏳ Inactive (3d+)</span>' : ''}
+                                    </div>
+                                    <div class="user-preview" id="preview-${docId}">Loading...</div>
+                                    <div class="user-time" id="time-${docId}"></div>
                                 </div>
                                 <div id="badge-${docId}" class="unread-badge" style="display: none;">0</div>
                             </div>
@@ -417,40 +546,19 @@
                                     <option value="custom">✍️ Custom Status...</option>
                                 </select>
                                 ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
-                                <!-- 🔥 DELETE BUTTON -->
-                                <button class="delete-user-btn" onclick="event.stopPropagation(); window.deleteUser('${docId}', '${userName}')">🗑 Delete</button>
+                            </div>
+                            <div class="user-actions">
+                                <button class="action-btn clear" onclick="event.stopPropagation(); window.clearChat('${docId}', '${userName}')">🧹 Clear Chat</button>
+                                <button class="action-btn delete" onclick="event.stopPropagation(); window.deleteUser('${docId}', '${userName}')">🗑 Delete User</button>
                             </div>
                         `;
                         userListDiv.appendChild(itemDiv);
 
+                        // Unread badge
                         const messagesRef = collection(db, "group_messages", docId, "messages");
-                        onSnapshot(messagesRef, async (msgSnapshot) => {
-                            let unreadCount = 0;
-                            let lastMsgTime = 0;
-
-                            msgSnapshot.forEach((msgDoc) => {
-                                const msgData = msgDoc.data();
-                                if (msgData.sender === 'user' && msgData.status !== 'read') {
-                                    unreadCount++;
-                                }
-                                if (msgData.time_now > lastMsgTime) {
-                                    lastMsgTime = msgData.time_now;
-                                }
-                            });
-
-                            const latestMsg = msgSnapshot.docs.reduce((latest, doc) => {
-                                const data = doc.data();
-                                return data.time_now > (latest?.data()?.time_now || 0) ? doc : latest;
-                            }, null);
-
-                            if (latestMsg) {
-                                const latestData = latestMsg.data();
-                                const currentLastUpdated = docData.lastUpdated || 0;
-                                if (latestData.time_now > currentLastUpdated) {
-                                    await updateChatTimestamp(docId);
-                                }
-                            }
-
+                        const unreadQuery = query(messagesRef, where("sender", "==", "user"), where("status", "!=", "read"));
+                        onSnapshot(unreadQuery, (snapshot) => {
+                            const unreadCount = snapshot.size;
                             const badge = document.getElementById(`badge-${docId}`);
                             if (badge) {
                                 if (unreadCount > 0) {
@@ -469,10 +577,45 @@
             }
         }
 
+        // ==========================================
+        // 🔥 CLEAR CHAT
+        // ==========================================
+        window.clearChat = async function(docId, userName) {
+            if (!confirm(`⚠️ Are you sure you want to clear ALL messages for "${userName}"?`)) {
+                return;
+            }
+
+            try {
+                const messagesRef = collection(db, "group_messages", docId, "messages");
+                const messagesSnapshot = await getDocs(messagesRef);
+                
+                const deletePromises = [];
+                messagesSnapshot.forEach((msgDoc) => {
+                    deletePromises.push(deleteDoc(doc(db, "group_messages", docId, "messages", msgDoc.id)));
+                });
+                await Promise.all(deletePromises);
+                await updateDoc(doc(db, "group_messages", docId), { lastUpdated: Date.now() });
+
+                if (activeDocId === docId) {
+                    chatBox.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Chat cleared. No messages.</div>";
+                }
+                alert(`✅ All messages for "${userName}" have been cleared.`);
+            } catch (error) {
+                console.error("Error clearing chat:", error);
+                alert("❌ Failed to clear chat.");
+            }
+        };
+
+        // ==========================================
+        // 🔥 GO BACK TO INBOX
+        // ==========================================
         window.goBackToInbox = function() {
             loadInbox();
         };
 
+        // ==========================================
+        // 🔥 RENDER MESSAGE
+        // ==========================================
         function renderMessage(id, sender, type, content, timeStr, status) {
             const msgDiv = document.createElement('div');
             const isMe = sender === currentSender;
@@ -525,7 +668,6 @@
             metaDiv.classList.add('msg-meta');
             metaDiv.innerHTML = `<span>${timeStr || ''}</span> ${ticksHtml}`;
             msgDiv.appendChild(metaDiv);
-
             chatBox.appendChild(msgDiv);
         }
 
