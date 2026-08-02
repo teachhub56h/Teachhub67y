@@ -297,6 +297,8 @@
         const unreadCounts = {}; // { docId: number } — used to sort unread chats to the top
         let unreadSystemListener = null;
 
+        const messageDocToParent = {}; // full message path -> parentDocId, so removals can be matched back
+
         function attachGlobalUnreadListener() {
             if (unreadSystemListener) return; // already running
 
@@ -309,41 +311,42 @@
             let baselineSet = false; // don't alert on the very first snapshot (existing unread messages)
 
             unreadSystemListener = onSnapshot(unreadQuery, (snapshot) => {
-                const freshCounts = {};
-                const changedDocs = {}; // docId -> latest message text, for docs whose count went up
-                snapshot.forEach((msgDoc) => {
-                    // msgDoc.ref path is group_messages/{docId}/messages/{msgId}
+                // 🔥 PERFORMANCE FIX: process only what actually changed
+                // (docChanges) instead of re-scanning and rebuilding counts
+                // from the ENTIRE pending-unread set on every single event.
+                // Previously, if 300 unread messages had piled up across 200
+                // students, one new message meant re-processing all 300 —
+                // and it kept getting slower the more unread piled up. Now
+                // each event only costs what actually changed (usually 1).
+                const touchedDocIds = new Set();
+
+                snapshot.docChanges().forEach((change) => {
+                    const msgDoc = change.doc;
                     const parentDocId = msgDoc.ref.parent.parent ? msgDoc.ref.parent.parent.id : null;
                     if (!parentDocId) return;
-                    freshCounts[parentDocId] = (freshCounts[parentDocId] || 0) + 1;
-                    const data = msgDoc.data();
-                    changedDocs[parentDocId] = data.message_text || 'New message';
+                    const pathKey = msgDoc.ref.path;
+                    touchedDocIds.add(parentDocId);
+
+                    if (change.type === 'added') {
+                        messageDocToParent[pathKey] = parentDocId;
+                        unreadCounts[parentDocId] = (unreadCounts[parentDocId] || 0) + 1;
+
+                        // A genuinely new message arrived — alert the admin.
+                        // Skip during the very first snapshot (that's just
+                        // existing old unread messages, not new ones).
+                        if (baselineSet) {
+                            const data = msgDoc.data();
+                            alertNewMessage(getUserFriendlyName(parentDocId), data.message_text || 'New message');
+                        }
+                    } else if (change.type === 'removed') {
+                        delete messageDocToParent[pathKey];
+                        unreadCounts[parentDocId] = Math.max(0, (unreadCounts[parentDocId] || 0) - 1);
+                    }
                 });
 
-                // 🔥 Detect genuinely new messages (count increased for this student)
-                // and alert the admin with sound + notification — but skip the very
-                // first snapshot so opening the app doesn't spam alerts for old unread.
-                if (baselineSet) {
-                    Object.keys(freshCounts).forEach((docId) => {
-                        const before = unreadCounts[docId] || 0;
-                        const after = freshCounts[docId];
-                        if (after > before) {
-                            const studentName = getUserFriendlyName(docId);
-                            alertNewMessage(studentName, changedDocs[docId]);
-                        }
-                    });
-                }
                 baselineSet = true;
 
-                // 🔥 PERFORMANCE FIX: only touch badges whose count actually
-                // changed, instead of scanning and rewriting all ~200 badge
-                // elements on every single incoming message.
-                const changedDocIds = new Set([...Object.keys(unreadCounts), ...Object.keys(freshCounts)]);
-
-                Object.keys(unreadCounts).forEach(k => delete unreadCounts[k]);
-                Object.assign(unreadCounts, freshCounts);
-
-                changedDocIds.forEach((docId) => {
+                touchedDocIds.forEach((docId) => {
                     const badge = document.getElementById(`badge-${docId}`);
                     if (!badge) return;
                     const count = unreadCounts[docId] || 0;
@@ -355,7 +358,7 @@
                     }
                 });
 
-                scheduleReorder();
+                if (touchedDocIds.size > 0) scheduleReorder();
             }, (error) => {
                 console.error("Unread listener error (may need a Firestore composite index — check console for a setup link):", error);
             });
@@ -407,7 +410,24 @@
                 const bTime = parseInt(b.dataset.lastupdated || '0', 10);
                 return bTime - aTime; // most recent first
             });
-            items.forEach(item => userListDiv.appendChild(item));
+
+            // 🔥 THE FIX: previously every reorder re-appended ALL ~200 items,
+            // forcing ~200 DOM writes/reflows even when only ONE student moved
+            // to the top. That synchronous work was blocking the main thread
+            // long enough that scrolling froze and other students' incoming
+            // messages queued up behind it instead of showing immediately.
+            //
+            // This walks the DOM and the desired order together and only moves
+            // an item when it's actually out of place — normally just 1 move
+            // per new message instead of 200.
+            let cursor = userListDiv.firstChild;
+            for (const item of items) {
+                if (cursor === item) {
+                    cursor = cursor.nextSibling;
+                } else {
+                    userListDiv.insertBefore(item, cursor);
+                }
+            }
         }
 
         // ==========================================
