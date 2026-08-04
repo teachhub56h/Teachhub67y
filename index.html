@@ -33,8 +33,6 @@
         .media-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 2000; align-items: center; justify-content: center; padding: 16px; }
         .media-lightbox img, .media-lightbox video { max-width: 100%; max-height: 100%; border-radius: 6px; }
         .media-lightbox-close { position: absolute; top: 16px; right: 16px; color: #fff; font-size: 30px; background: none; border: none; cursor: pointer; line-height: 1; }
-        .video-thumb { position: relative; cursor: pointer; }
-        .video-thumb .play-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 48px; height: 48px; background: rgba(0,0,0,0.55); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; pointer-events: none; }
         .msg img, .msg .video-thumb video { cursor: pointer; }
 
         .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background-color: #eef2f5; }
@@ -125,14 +123,25 @@ console.log('📢 Your Chat ID:', myChatDocId);
 // REGISTER USER
 // ==========================================
 async function registerUser() {
-    const time = Math.floor(Date.now() / 1000);
-    await supabase.from('users').insert({
-        id: myChatDocId,
-        name: 'Student Auto',
-        phone: 'Mobile',
-        status: 'active',
-        created_at: time
-    }).then(() => console.log("✅ User Registered")).catch(() => {});
+    try {
+        const time = Math.floor(Date.now() / 1000);
+        const { data, error } = await supabase
+            .from('users')
+            .insert({
+                id: myChatDocId,
+                name: 'Student Auto',
+                phone: 'Mobile',
+                status: 'active',
+                created_at: time
+            });
+        if (error) {
+            console.log('User already exists or error:', error.message);
+        } else {
+            console.log('✅ User Registered');
+        }
+    } catch (e) {
+        console.log('Register error:', e.message);
+    }
 }
 registerUser();
 
@@ -140,28 +149,74 @@ registerUser();
 // UPLOAD TO IMGBB
 // ==========================================
 async function uploadToImgBB(file) {
-    const formData = new FormData();
-    formData.append('image', file);
-    const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_API_KEY}`, { method: 'POST', body: formData });
-    const data = await res.json();
-    return data.success ? data.data.url : null;
+    try {
+        const formData = new FormData();
+        formData.append('image', file);
+        const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_API_KEY}`, { 
+            method: 'POST', 
+            body: formData 
+        });
+        const data = await res.json();
+        return data.success ? data.data.url : null;
+    } catch (e) {
+        console.log('Upload error:', e.message);
+        return null;
+    }
 }
 
 // ==========================================
-// SEND MESSAGE
+// SEND MESSAGE - FINAL FIXED
 // ==========================================
 async function sendMessage(type, content) {
-    const finalContent = type === 'text' ? content : await uploadToImgBB(content);
-    if (!finalContent && type !== 'text') return;
+    alert('1️⃣ Sending message...');
+    
+    try {
+        let messageData = {
+            chat_id: myChatDocId,
+            sender: 'user',
+            type: type,
+            time_now: Date.now()
+        };
 
-    await supabase.from('messages').insert({
-        chat_id: myChatDocId,
-        sender: 'user',
-        type: type,
-        message_text: type === 'text' ? content : `Sent a ${type}`,
-        file_url: type !== 'text' ? finalContent : '',
-        time_now: Date.now()
-    });
+        if (type === 'text') {
+            messageData.message_text = content;
+            messageData.file_url = '';
+            alert('2️⃣ Text: ' + content);
+        } else {
+            alert('2️⃣ Uploading media...');
+            const url = await uploadToImgBB(content);
+            if (!url) {
+                alert('❌ Upload failed!');
+                return;
+            }
+            messageData.message_text = `Sent a ${type}`;
+            messageData.file_url = url;
+            alert('3️⃣ Media uploaded');
+        }
+
+        alert('4️⃣ Chat ID: ' + myChatDocId);
+        alert('5️⃣ Sending to Supabase...');
+        
+        const { data, error } = await supabase
+            .from('messages')
+            .insert([messageData]);
+
+        if (error) {
+            alert('❌ Error: ' + error.message);
+            console.error('Error:', error);
+            return;
+        }
+
+        alert('✅ Message sent!');
+        console.log('✅ Message sent:', data);
+        
+        renderMessage(messageData);
+        document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
+        
+    } catch (error) {
+        alert('❌ Exception: ' + error.message);
+        console.error('Error:', error);
+    }
 }
 
 // ==========================================
@@ -169,6 +224,11 @@ async function sendMessage(type, content) {
 // ==========================================
 function loadMessages() {
     const chatBox = document.getElementById('chatBox');
+    
+    // Load existing messages
+    loadExistingMessages();
+    
+    // Subscribe to new messages
     supabase.channel(`room:${myChatDocId}`)
         .on('postgres_changes', { 
             event: 'INSERT', 
@@ -182,6 +242,28 @@ function loadMessages() {
         .subscribe();
 }
 
+async function loadExistingMessages() {
+    try {
+        const { data, error } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('chat_id', myChatDocId)
+            .order('time_now', { ascending: true });
+            
+        if (error) {
+            console.error('Load error:', error);
+            return;
+        }
+        
+        const chatBox = document.getElementById('chatBox');
+        chatBox.innerHTML = '';
+        data.forEach(msg => renderMessage(msg));
+        chatBox.scrollTop = chatBox.scrollHeight;
+    } catch (e) {
+        console.error('Load error:', e.message);
+    }
+}
+
 function renderMessage(data) {
     const chatBox = document.getElementById('chatBox');
     const msgDiv = document.createElement('div');
@@ -190,32 +272,84 @@ function renderMessage(data) {
 
     if (data.type === 'text') {
         msgDiv.innerHTML = `<span>${data.message_text}</span>`;
-    } else {
-        const media = document.createElement(data.type === 'image' ? 'img' : data.type);
-        media.src = data.file_url;
-        if (data.type !== 'image') media.controls = true;
-        msgDiv.appendChild(media);
+    } else if (data.type === 'image') {
+        const img = document.createElement('img');
+        img.src = data.file_url;
+        img.style.maxWidth = '100%';
+        img.style.maxHeight = '200px';
+        img.style.borderRadius = '6px';
+        img.onclick = () => openLightbox(data.file_url, 'image');
+        msgDiv.appendChild(img);
+    } else if (data.type === 'video') {
+        const video = document.createElement('video');
+        video.src = data.file_url;
+        video.controls = true;
+        video.style.maxWidth = '100%';
+        video.style.maxHeight = '200px';
+        video.style.borderRadius = '6px';
+        msgDiv.appendChild(video);
+    } else if (data.type === 'audio') {
+        const audio = document.createElement('audio');
+        audio.src = data.file_url;
+        audio.controls = true;
+        audio.style.maxWidth = '100%';
+        msgDiv.appendChild(audio);
     }
+    
     chatBox.appendChild(msgDiv);
 }
 
 // ==========================================
-// EVENT LISTENERS
+// MEDIA LIGHTBOX
+// ==========================================
+function openLightbox(url, type) {
+    const lightbox = document.getElementById('mediaLightbox');
+    const content = document.getElementById('mediaLightboxContent');
+    lightbox.style.display = 'flex';
+    
+    if (type === 'image') {
+        content.innerHTML = `<img src="${url}" alt="Media">`;
+    } else if (type === 'video') {
+        content.innerHTML = `<video src="${url}" controls autoplay style="max-width:100%;max-height:100%;"></video>`;
+    }
+}
+
+document.getElementById('mediaLightboxCloseBtn').addEventListener('click', () => {
+    document.getElementById('mediaLightbox').style.display = 'none';
+    document.getElementById('mediaLightboxContent').innerHTML = '';
+});
+
+document.getElementById('mediaLightbox').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) {
+        document.getElementById('mediaLightbox').style.display = 'none';
+        document.getElementById('mediaLightboxContent').innerHTML = '';
+    }
+});
+
+// ==========================================
+// EVENT LISTENERS - FIXED
 // ==========================================
 document.getElementById('sendBtn').onclick = () => {
     const input = document.getElementById('msgInput');
-    if (input.value.trim()) { 
-        sendMessage('text', input.value); 
+    const text = input.value.trim();
+    
+    alert('0️⃣ Send button clicked!');
+    
+    if (text) { 
+        alert('📝 Message: ' + text);
+        sendMessage('text', text); 
         input.value = ''; 
+    } else {
+        alert('⚠️ Empty message!');
     }
 };
 
 document.getElementById('msgInput').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
         const input = document.getElementById('msgInput');
-        const t = input.value.trim();
-        if (t) { 
-            sendMessage('text', t); 
+        const text = input.value.trim();
+        if (text) { 
+            sendMessage('text', text); 
             input.value = ''; 
         }
     }
@@ -224,7 +358,11 @@ document.getElementById('msgInput').addEventListener('keypress', (e) => {
 document.getElementById('mediaInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 1548576) { alert('File size limit is 1.5MB.'); return; }
+    if (file.size > 1548576) { 
+        alert('File size limit is 1.5MB.'); 
+        e.target.value = '';
+        return; 
+    }
     const url = await uploadToImgBB(file);
     if(url) {
         const type = file.type.startsWith('image/') ? 'image' : 
@@ -232,24 +370,29 @@ document.getElementById('mediaInput').addEventListener('change', async (e) => {
                      file.type.startsWith('audio/') ? 'audio' : 'text';
         sendMessage(type, url);
     }
+    e.target.value = '';
 });
 
 let mediaRecorder, audioChunks = [], isRecording = false;
 document.getElementById('voiceBtn').addEventListener('click', async () => {
     if (!isRecording) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        audioChunks = [];
-        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-        mediaRecorder.onstop = async () => {
-            const blob = new Blob(audioChunks, { type: 'audio/mp3' });
-            const url = await uploadToImgBB(blob);
-            if(url) sendMessage('audio', url);
-        };
-        mediaRecorder.start();
-        isRecording = true;
-        document.getElementById('voiceBtn').textContent = '🛑';
-        document.getElementById('voiceBtn').classList.add('recording');
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+            mediaRecorder.onstop = async () => {
+                const blob = new Blob(audioChunks, { type: 'audio/mp3' });
+                const url = await uploadToImgBB(blob);
+                if(url) sendMessage('audio', url);
+            };
+            mediaRecorder.start();
+            isRecording = true;
+            document.getElementById('voiceBtn').textContent = '🛑';
+            document.getElementById('voiceBtn').classList.add('recording');
+        } catch (error) {
+            alert('Microphone access denied.');
+        }
     } else {
         mediaRecorder.stop();
         isRecording = false;
@@ -258,7 +401,28 @@ document.getElementById('voiceBtn').addEventListener('click', async () => {
     }
 });
 
-// Install button
+// ==========================================
+// NOTIFICATION
+// ==========================================
+document.getElementById('notifBtn').addEventListener('click', function() {
+    const status = document.getElementById('notifStatus');
+    if (status.textContent === '🔔 Notifications Off') {
+        status.textContent = '🔔 Notifications On';
+        this.textContent = '🔔 Disable';
+        this.style.background = '#43a047';
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    } else {
+        status.textContent = '🔔 Notifications Off';
+        this.textContent = '🔔 Enable';
+        this.style.background = '#F4B400';
+    }
+});
+
+// ==========================================
+// INSTALL
+// ==========================================
 document.addEventListener('DOMContentLoaded', () => {
     let deferredPrompt;
     const installBtn = document.getElementById('installBtn');
@@ -289,27 +453,11 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Notification
-document.getElementById('notifBtn').addEventListener('click', function() {
-    const status = document.getElementById('notifStatus');
-    if (status.textContent === '🔔 Notifications Off') {
-        status.textContent = '🔔 Notifications On';
-        this.textContent = '🔔 Disable';
-        this.style.background = '#43a047';
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
-    } else {
-        status.textContent = '🔔 Notifications Off';
-        this.textContent = '🔔 Enable';
-        this.style.background = '#F4B400';
-    }
-});
-
 // ==========================================
 // START
 // ==========================================
 loadMessages();
+alert('✅ App started! Chat ID: ' + myChatDocId);
 </script>
 </body>
 </html>
