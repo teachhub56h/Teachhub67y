@@ -46,7 +46,7 @@
 
         .msg-meta { align-self: flex-end; display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #6b7a85; user-select: none; }
 
-        /* 🔥 DOUBLE TICK STYLES */
+        /* 🔥 DOUBLE TICK */
         .tick { display: inline-block; font-weight: bold; font-size: 12px; margin-left: 2px; }
         .tick.sent { color: #8696a0; }
         .tick.delivered { color: #8696a0; }
@@ -159,6 +159,25 @@ const toBase64 = file => new Promise((resolve, reject) => {
 });
 
 // ==========================================
+// 🔥 SMART AUTO-CLEAR (Ek Ek Karke)
+// ==========================================
+async function autoClearOldMessages() {
+    try {
+        const messagesRef = db.collection('group_messages').doc(myChatDocId).collection('messages');
+        const snapshot = await messagesRef.orderBy('time_now', 'asc').get();
+        
+        // Agar 71+ messages hain, toh SIRF EK PURANA DELETE KARO
+        if (snapshot.size > 70) {
+            const oldestDoc = snapshot.docs[0];
+            await messagesRef.doc(oldestDoc.id).delete();
+            console.log(`✅ Deleted 1 old message. Now ${snapshot.size - 1} messages remaining.`);
+        }
+    } catch (error) {
+        console.error("Auto-clear error:", error);
+    }
+}
+
+// ==========================================
 // 🔥 SEND MESSAGE
 // ==========================================
 async function sendMessage(type, content) {
@@ -168,11 +187,9 @@ async function sendMessage(type, content) {
     if (type === 'text') {
         messageText = content;
     } else if (type === 'audio') {
-        // 🔥 Voice → Firebase (Base64)
         fileUrl = content;
         messageText = 'Sent a voice note';
     } else {
-        // 🔥 Images/Videos → ImgBB
         const url = await uploadToImgBB(content);
         if (!url) {
             alert('Upload failed!');
@@ -190,8 +207,11 @@ async function sendMessage(type, content) {
             file_url: fileUrl,
             time_now: Date.now(),
             time_label: new Date().toLocaleTimeString(),
-            status: 'sent'  // 🔥 Status track
+            status: 'sent'
         });
+    
+    // Auto-clear after sending
+    setTimeout(autoClearOldMessages, 1000);
 }
 
 // ==========================================
@@ -212,6 +232,11 @@ function loadMessages() {
             });
             
             chatBox.scrollTop = chatBox.scrollHeight;
+            
+            // Check auto-clear
+            if (snapshot.size > 70) {
+                autoClearOldMessages();
+            }
         });
 }
 
@@ -224,7 +249,6 @@ function renderMessage(docId, data) {
     const isMe = data.sender === 'user';
     msgDiv.classList.add('msg', isMe ? 'sent-by-me' : 'received-by-me');
 
-    // Content
     if (data.type === 'text') {
         msgDiv.innerHTML = `<span>${data.message_text}</span>`;
     } else if (data.type === 'image') {
@@ -235,18 +259,12 @@ function renderMessage(docId, data) {
         msgDiv.innerHTML = `<audio src="${data.file_url}" controls></audio>`;
     }
 
-    // 🔥 DOUBLE TICK
     let tickHtml = '';
     if (isMe) {
-        if (data.status === 'sent') {
-            tickHtml = '<span class="tick sent">✓</span>';
-        } else if (data.status === 'delivered') {
-            tickHtml = '<span class="tick delivered">✓✓</span>';
-        } else if (data.status === 'read') {
-            tickHtml = '<span class="tick read">✓✓</span>';
-        } else {
-            tickHtml = '<span class="tick sent">✓</span>';
-        }
+        if (data.status === 'sent') tickHtml = '<span class="tick sent">✓</span>';
+        else if (data.status === 'delivered') tickHtml = '<span class="tick delivered">✓✓</span>';
+        else if (data.status === 'read') tickHtml = '<span class="tick read">✓✓</span>';
+        else tickHtml = '<span class="tick sent">✓</span>';
     }
 
     const metaDiv = document.createElement('div');
@@ -255,7 +273,6 @@ function renderMessage(docId, data) {
     msgDiv.appendChild(metaDiv);
     chatBox.appendChild(msgDiv);
 
-    // 🔥 Auto-mark as read when user sees admin message
     if (!isMe && data.status !== 'read') {
         db.collection('group_messages')
             .doc(myChatDocId)
@@ -427,6 +444,10 @@ document.addEventListener('DOMContentLoaded', () => {
 // 🔥 START
 // ==========================================
 loadMessages();
+
+// Auto-clear check every 5 minutes
+setInterval(autoClearOldMessages, 5 * 60 * 1000);
+
 console.log('✅ Student app started! Chat ID:', myChatDocId);
 </script>
 </body>
