@@ -53,10 +53,6 @@
         .icon-btn.recording { color: #ea0038; animation: blink 1s infinite; }
         .send-btn { background: #1B4F72; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
-
-        .online-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; margin-left: 8px; }
-        .online-dot.online { background: #43a047; }
-        .online-dot.offline { background: #bdbdbd; }
     </style>
 </head>
 <body>
@@ -64,7 +60,7 @@
     <div class="chat-header">
         <img class="profile-img" src="logo-192.png" alt="Teach Hub">
         <div class="header-info">
-            <div class="name">Teach Hub Support <span class="online-dot" id="adminStatus" style="width:10px;height:10px;border-radius:50%;display:inline-block;margin-left:8px;background:#bdbdbd;"></span></div>
+            <div class="name">Teach Hub Support</div>
             <div class="status" id="notifStatus">🔔 Notifications Off</div>
         </div>
         <button id="notifBtn" class="header-btn">🔔 Enable</button>
@@ -97,9 +93,6 @@
     <div id="mediaLightboxContent"></div>
 </div>
 
-<!-- ========================================== -->
-<!-- 🔥 FIREBASE SDKs                           -->
-<!-- ========================================== -->
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
 
@@ -135,23 +128,7 @@ if (!myChatDocId) {
 console.log('📢 Your Chat ID:', myChatDocId);
 
 // ==========================================
-// 🔥 ADMIN ONLINE STATUS
-// ==========================================
-function checkAdminStatus() {
-    db.collection('admin_presence').doc('admin').onSnapshot((doc) => {
-        const data = doc.data();
-        const dot = document.getElementById('adminStatus');
-        if (data && data.online) {
-            dot.className = 'online-dot online';
-        } else {
-            dot.className = 'online-dot offline';
-        }
-    });
-}
-checkAdminStatus();
-
-// ==========================================
-// 🔥 UPLOAD TO IMGBB
+// 🔥 UPLOAD TO IMGBB (Images & Videos Only)
 // ==========================================
 async function uploadToImgBB(file) {
     const formData = new FormData();
@@ -166,6 +143,16 @@ async function uploadToImgBB(file) {
 }
 
 // ==========================================
+// 🔥 TO BASE64 (For Audio)
+// ==========================================
+const toBase64 = file => new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = error => reject(error);
+});
+
+// ==========================================
 // 🔥 SEND MESSAGE
 // ==========================================
 async function sendMessage(type, content) {
@@ -174,7 +161,12 @@ async function sendMessage(type, content) {
     
     if (type === 'text') {
         messageText = content;
+    } else if (type === 'audio') {
+        // 🔥 Audio directly as Base64 (no ImgBB)
+        fileUrl = content;
+        messageText = 'Sent a voice note';
     } else {
+        // Images/Videos → ImgBB
         const url = await uploadToImgBB(content);
         if (!url) {
             alert('Upload failed!');
@@ -194,13 +186,6 @@ async function sendMessage(type, content) {
             time_label: new Date().toLocaleTimeString(),
             status: 'sent'
         });
-    
-    // Update last message for user list
-    await db.collection('group_messages').doc(myChatDocId).set({
-        lastUpdated: Date.now(),
-        lastMessage: messageText,
-        lastSender: 'user'
-    }, { merge: true });
 }
 
 // ==========================================
@@ -221,20 +206,6 @@ function loadMessages() {
             });
             
             chatBox.scrollTop = chatBox.scrollHeight;
-            
-            // Update read status
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === 'added') {
-                    const data = change.doc.data();
-                    if (data.sender === 'admin') {
-                        db.collection('group_messages')
-                            .doc(myChatDocId)
-                            .collection('messages')
-                            .doc(change.doc.id)
-                            .update({ status: 'read' });
-                    }
-                }
-            });
         });
 }
 
@@ -254,18 +225,9 @@ function renderMessage(data) {
         msgDiv.innerHTML = `<audio src="${data.file_url}" controls></audio>`;
     }
 
-    // Status ticks
-    let statusHtml = '';
-    if (isMe) {
-        if (data.status === 'sent') statusHtml = '✓';
-        else if (data.status === 'delivered') statusHtml = '✓✓';
-        else if (data.status === 'read') statusHtml = '✓✓';
-        else statusHtml = '✓';
-    }
-
     const metaDiv = document.createElement('div');
     metaDiv.classList.add('msg-meta');
-    metaDiv.innerHTML = `<span>${data.time_label || ''}</span> ${statusHtml}`;
+    metaDiv.innerHTML = `<span>${data.time_label || ''}</span>`;
     msgDiv.appendChild(metaDiv);
     chatBox.appendChild(msgDiv);
 }
@@ -277,19 +239,13 @@ function openLightbox(url, type) {
     const lightbox = document.getElementById('mediaLightbox');
     const content = document.getElementById('mediaLightboxContent');
     content.innerHTML = '';
+    lightbox.style.display = 'flex';
     
     if (type === 'image') {
-        const img = document.createElement('img');
-        img.src = url;
-        content.appendChild(img);
+        content.innerHTML = `<img src="${url}" style="max-width:100%;max-height:100%;border-radius:6px;">`;
     } else if (type === 'video') {
-        const video = document.createElement('video');
-        video.src = url;
-        video.controls = true;
-        video.autoplay = true;
-        content.appendChild(video);
+        content.innerHTML = `<video src="${url}" controls autoplay style="max-width:100%;max-height:100%;border-radius:6px;"></video>`;
     }
-    lightbox.style.display = 'flex';
 }
 
 document.getElementById('mediaLightboxCloseBtn').addEventListener('click', () => {
@@ -339,10 +295,18 @@ document.getElementById('mediaInput').addEventListener('change', async (e) => {
                  file.type.startsWith('video/') ? 'video' : 
                  file.type.startsWith('audio/') ? 'audio' : 'text';
     
-    await sendMessage(type, file);
+    if (type === 'audio') {
+        const base64 = await toBase64(file);
+        await sendMessage('audio', base64);
+    } else {
+        await sendMessage(type, file);
+    }
     e.target.value = '';
 });
 
+// ==========================================
+// 🔥 VOICE RECORDING - FIXED
+// ==========================================
 let mediaRecorder, audioChunks = [], isRecording = false;
 
 document.getElementById('voiceBtn').addEventListener('click', async () => {
@@ -355,7 +319,14 @@ document.getElementById('voiceBtn').addEventListener('click', async () => {
             mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
             mediaRecorder.onstop = async () => {
                 const blob = new Blob(audioChunks, { type: 'audio/mp3' });
-                await sendMessage('audio', blob);
+                
+                // 🔥 Convert to Base64
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+                reader.onload = async () => {
+                    const base64 = reader.result;
+                    await sendMessage('audio', base64);
+                };
             };
             
             mediaRecorder.start();
