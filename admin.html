@@ -11,12 +11,19 @@
         .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #f5f7f8; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
 
         #inbox-view { display: flex; flex-direction: column; height: 100%; background: #ffffff; }
-        .inbox-header { background: #1B4F72; color: white; padding: 16px; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .inbox-header { background: #1B4F72; color: white; padding: 16px; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .inbox-header img { width: 26px; height: 26px; }
+        .inbox-header .header-actions { display: flex; gap: 8px; margin-left: auto; }
+        .inbox-header .header-actions button { padding: 5px 12px; border: none; border-radius: 15px; font-size: 12px; font-weight: 600; cursor: pointer; }
+        .btn-delete-selected { background: #e53935; color: white; }
+        .btn-delete-selected:disabled { opacity: 0.5; cursor: not-allowed; }
+
         .user-list { flex: 1; overflow-y: auto; padding: 8px 0; background: #ffffff; }
 
         .user-item { display: flex; flex-direction: column; padding: 12px 16px; border-bottom: 1px solid #f0f0f0; transition: background 0.2s; position: relative; }
         .user-item:hover { background: #f5f6f6; }
+        .user-item.selected { background: #e3f2fd; border-left: 4px solid #1B84D8; }
+
         .user-clickable-area { display: flex; align-items: center; gap: 15px; width: 100%; cursor: pointer; }
         .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #1B4F72; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; flex-shrink: 0; }
         .user-details { flex: 1; min-width: 0; }
@@ -37,6 +44,8 @@
         .delete-user-btn { font-size: 12px; padding: 4px 10px; background: #c62828; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
         .delete-user-btn:hover { background: #b71c1c; }
 
+        .select-checkbox { width: 20px; height: 20px; cursor: pointer; flex-shrink: 0; }
+
         #chat-view { display: none; flex-direction: column; height: 100%; }
         .chat-header { background: #123a56; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .back-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; }
@@ -54,7 +63,7 @@
         .msg audio { max-width: 100%; display: block; outline: none; }
         .msg-meta { align-self: flex-end; display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #6b7a85; user-select: none; }
 
-        .tick { display: inline-block; font-weight: bold; font-size: 12px; margin-left: 1px; }
+        .tick { display: inline-block; font-weight: bold; font-size: 12px; margin-left: 2px; }
         .tick.sent { color: #8696a0; }
         .tick.delivered { color: #8696a0; }
         .tick.read { color: #1B84D8; }
@@ -78,6 +87,11 @@
         <div class="inbox-header">
             <img src="logo-192.png" alt="Teach Hub">
             <span>Teach Hub - Staff Inbox</span>
+            <div class="header-actions">
+                <button class="btn-delete-selected" id="deleteSelectedBtn" disabled onclick="deleteSelectedUsers()">
+                    🗑 Delete Selected
+                </button>
+            </div>
         </div>
         <div class="user-list" id="userList"></div>
     </div>
@@ -145,10 +159,12 @@ const msgInput = document.getElementById('msgInput');
 const sendBtn = document.getElementById('sendBtn');
 const mediaInput = document.getElementById('mediaInput');
 const voiceBtn = document.getElementById('voiceBtn');
+const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
 
 let activeDocId = "";
 let activeChatListener = null;
 let mediaRecorder, audioChunks = [], isRecording = false;
+let selectedUsers = new Set();
 
 // ==========================================
 // 🔥 SOUND NOTIFICATION
@@ -186,7 +202,7 @@ async function uploadToImgBB(file) {
 }
 
 // ==========================================
-// 🔥 TO BASE64 (For audio)
+// 🔥 TO BASE64
 // ==========================================
 const toBase64 = file => new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -194,6 +210,89 @@ const toBase64 = file => new Promise((resolve, reject) => {
     reader.onload = () => resolve(reader.result);
     reader.onerror = error => reject(error);
 });
+
+// ==========================================
+// 🔥 SMART AUTO-CLEAR (Ek Ek Karke)
+// ==========================================
+async function autoClearOldMessages(docId) {
+    try {
+        const messagesRef = db.collection('group_messages').doc(docId).collection('messages');
+        const snapshot = await messagesRef.orderBy('time_now', 'asc').get();
+        
+        if (snapshot.size > 70) {
+            const oldestDoc = snapshot.docs[0];
+            await messagesRef.doc(oldestDoc.id).delete();
+            console.log(`✅ Deleted 1 old message for ${docId}. Now ${snapshot.size - 1} messages remaining.`);
+        }
+    } catch (error) {
+        console.error("Auto-clear error:", error);
+    }
+}
+
+// ==========================================
+// 🔥 DELETE USER COMPLETE
+// ==========================================
+async function deleteUserCompletely(docId, userName) {
+    try {
+        const messages = await db.collection('group_messages').doc(docId).collection('messages').get();
+        for (const msg of messages.docs) {
+            await db.collection('group_messages').doc(docId).collection('messages').doc(msg.id).delete();
+        }
+        await db.collection('group_messages').doc(docId).delete();
+        
+        let savedNames = localStorage.getItem('chatUserNames');
+        if (savedNames) {
+            savedNames = JSON.parse(savedNames);
+            delete savedNames[docId];
+            localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
+        }
+        console.log(`✅ Deleted user: ${userName} (${docId})`);
+        return true;
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        return false;
+    }
+}
+
+// ==========================================
+// 🔥 SELECT/DESELECT USER
+// ==========================================
+function toggleUserSelection(docId, checkbox) {
+    if (checkbox.checked) {
+        selectedUsers.add(docId);
+        document.getElementById(`user-item-${docId}`)?.classList.add('selected');
+    } else {
+        selectedUsers.delete(docId);
+        document.getElementById(`user-item-${docId}`)?.classList.remove('selected');
+    }
+    deleteSelectedBtn.disabled = selectedUsers.size === 0;
+    deleteSelectedBtn.textContent = selectedUsers.size > 0 ? `🗑 Delete Selected (${selectedUsers.size})` : '🗑 Delete Selected';
+}
+
+// ==========================================
+// 🔥 DELETE SELECTED USERS
+// ==========================================
+async function deleteSelectedUsers() {
+    if (selectedUsers.size === 0) return;
+    if (!confirm(`Delete ${selectedUsers.size} selected user(s) and all their chats?`)) return;
+    
+    deleteSelectedBtn.disabled = true;
+    deleteSelectedBtn.textContent = '⏳ Deleting...';
+    
+    let deleted = 0;
+    const toDelete = [...selectedUsers];
+    for (const docId of toDelete) {
+        const userName = getUserFriendlyName(docId);
+        const success = await deleteUserCompletely(docId, userName);
+        if (success) deleted++;
+    }
+    
+    selectedUsers.clear();
+    deleteSelectedBtn.disabled = true;
+    deleteSelectedBtn.textContent = '🗑 Delete Selected';
+    alert(`✅ ${deleted} user(s) deleted successfully!`);
+    loadInbox();
+}
 
 // ==========================================
 // 🔥 UPDATE STATUS
@@ -205,32 +304,6 @@ async function updateCustomerStatus(docId, newStatus) {
         console.error("Error updating status: ", error);
     }
 }
-
-// ==========================================
-// 🔥 DELETE USER
-// ==========================================
-window.deleteUser = async function(docId, userName) {
-    if (!confirm(`Delete "${userName}"?`)) return;
-    try {
-        const messages = await db.collection('group_messages').doc(docId).collection('messages').get();
-        messages.forEach(async (msg) => {
-            await db.collection('group_messages').doc(docId).collection('messages').doc(msg.id).delete();
-        });
-        await db.collection('group_messages').doc(docId).delete();
-        
-        let savedNames = localStorage.getItem('chatUserNames');
-        if (savedNames) {
-            savedNames = JSON.parse(savedNames);
-            delete savedNames[docId];
-            localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
-        }
-        if (activeDocId === docId) goBackToInbox();
-        alert(`✅ Deleted "${userName}"`);
-    } catch (error) {
-        console.error("Error deleting user:", error);
-        alert("❌ Failed to delete.");
-    }
-};
 
 // ==========================================
 // 🔥 STATUS HANDLERS
@@ -251,12 +324,50 @@ window.removeStatus = function(docId) {
 };
 
 // ==========================================
+// 🔥 DELETE SINGLE USER
+// ==========================================
+window.deleteUser = async function(docId, userName) {
+    if (!confirm(`Delete "${userName}" and all their chats?`)) return;
+    await deleteUserCompletely(docId, userName);
+    if (activeDocId === docId) goBackToInbox();
+    alert(`✅ Deleted "${userName}"`);
+    loadInbox();
+};
+
+// ==========================================
+// 🔥 CHECK INACTIVE USERS (48 hours)
+// ==========================================
+async function checkInactiveUsers() {
+    const now = Date.now();
+    const twoDaysAgo = now - (48 * 60 * 60 * 1000);
+    
+    try {
+        const snapshot = await db.collection('group_messages').get();
+        for (const doc of snapshot.docs) {
+            const data = doc.data();
+            const lastUpdated = data.lastUpdated || 0;
+            
+            if (lastUpdated < twoDaysAgo) {
+                const userName = getUserFriendlyName(doc.id);
+                await deleteUserCompletely(doc.id, userName);
+                console.log(`✅ Auto-deleted inactive user: ${userName}`);
+            }
+        }
+    } catch (error) {
+        console.error("Inactive check error:", error);
+    }
+}
+
+// ==========================================
 // 🔥 LOAD INBOX
 // ==========================================
 function loadInbox() {
     inboxView.style.display = 'flex';
     chatView.style.display = 'none';
     if (activeChatListener) { activeChatListener(); activeChatListener = null; }
+    selectedUsers.clear();
+    deleteSelectedBtn.disabled = true;
+    deleteSelectedBtn.textContent = '🗑 Delete Selected';
 
     userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>Loading...</div>";
 
@@ -283,16 +394,24 @@ function loadInbox() {
                 else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
                 else if (activeStatus !== "") tagClass += " custom";
 
+                const isSelected = selectedUsers.has(docId);
+
                 const itemDiv = document.createElement('div');
-                itemDiv.className = 'user-item';
+                itemDiv.className = `user-item ${isSelected ? 'selected' : ''}`;
+                itemDiv.id = `user-item-${docId}`;
                 itemDiv.innerHTML = `
-                    <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
-                        <div class="user-avatar">🎓</div>
-                        <div class="user-details">
-                            <div class="user-phone">${userName}</div>
-                            <div class="user-subtitle">ID: ${docId.substring(0, 15)}...</div>
+                    <div style="display:flex;align-items:center;gap:10px;width:100%;">
+                        <input type="checkbox" class="select-checkbox" id="checkbox-${docId}" 
+                               onchange="toggleUserSelection('${docId}', this)" 
+                               ${isSelected ? 'checked' : ''}>
+                        <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
+                            <div class="user-avatar">🎓</div>
+                            <div class="user-details">
+                                <div class="user-phone">${userName}</div>
+                                <div class="user-subtitle" id="subtitle-${docId}">ID: ${docId.substring(0, 12)}...</div>
+                            </div>
+                            <div id="badge-${docId}" class="unread-badge" style="display:none;">0</div>
                         </div>
-                        <div id="badge-${docId}" class="unread-badge" style="display:none;">0</div>
                     </div>
                     <div class="status-container">
                         ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px;color:#aaa;">No tag</span>'}
@@ -326,6 +445,22 @@ function loadInbox() {
                             } else {
                                 badge.style.display = 'none';
                             }
+                        }
+                    });
+                
+                // Count total messages & auto-clear
+                db.collection('group_messages')
+                    .doc(docId)
+                    .collection('messages')
+                    .get()
+                    .then((msgSnap) => {
+                        const count = msgSnap.size;
+                        const subtitle = document.getElementById(`subtitle-${docId}`);
+                        if (subtitle) {
+                            subtitle.textContent = `ID: ${docId.substring(0, 12)}... | Msgs: ${count}`;
+                        }
+                        if (count > 70) {
+                            autoClearOldMessages(docId);
                         }
                     });
             });
@@ -376,6 +511,11 @@ window.openChat = function(docId, userName) {
             }
             
             chatBox.scrollTop = chatBox.scrollHeight;
+            
+            // Check auto-clear
+            if (snapshot.size > 70) {
+                autoClearOldMessages(docId);
+            }
         });
 };
 
@@ -448,6 +588,9 @@ async function sendMessageToFirebase(type, content) {
     
     if (type === 'text') {
         messageText = content;
+    } else if (type === 'audio') {
+        fileUrl = content;
+        messageText = 'Sent a voice note';
     } else {
         const url = await uploadToImgBB(content);
         if (!url) {
@@ -470,7 +613,9 @@ async function sendMessageToFirebase(type, content) {
     };
     
     await db.collection('group_messages').doc(activeDocId).collection('messages').add(msgData);
-    await db.collection('group_messages').doc(activeDocId).set({ lastUpdated: timestamp }, { merge: true });
+    await db.collection('group_messages').doc(activeDocId).set({ 
+        lastUpdated: timestamp
+    }, { merge: true });
 }
 
 // ==========================================
@@ -504,7 +649,13 @@ mediaInput.addEventListener('change', async (e) => {
     }
     const type = file.type.startsWith('image/') ? 'image' : 
                  file.type.startsWith('video/') ? 'video' : 'audio';
-    await sendMessageToFirebase(type, file);
+    
+    if (type === 'audio') {
+        const base64 = await toBase64(file);
+        await sendMessageToFirebase('audio', base64);
+    } else {
+        await sendMessageToFirebase(type, file);
+    }
     e.target.value = '';
 });
 
@@ -517,7 +668,11 @@ voiceBtn.addEventListener('click', async () => {
             mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
             mediaRecorder.onstop = async () => {
                 const blob = new Blob(audioChunks, { type: 'audio/mp3' });
-                await sendMessageToFirebase('audio', blob);
+                const reader = new FileReader();
+                reader.readAsDataURL(blob);
+                reader.onload = async () => {
+                    await sendMessageToFirebase('audio', reader.result);
+                };
             };
             mediaRecorder.start();
             isRecording = true;
@@ -533,6 +688,12 @@ voiceBtn.addEventListener('click', async () => {
         voiceBtn.classList.remove('recording');
     }
 });
+
+// ==========================================
+// 🔥 RUN INACTIVE CHECK EVERY 6 HOURS
+// ==========================================
+setInterval(checkInactiveUsers, 6 * 60 * 60 * 1000);
+setTimeout(checkInactiveUsers, 5000);
 
 // ==========================================
 // 🔥 START
