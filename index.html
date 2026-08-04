@@ -105,7 +105,7 @@
 
 <script>
 // ==========================================
-// 🔥 KEYS (YAHAN PASTE KAREIN)
+// 🔥 KEYS (UPDATED WITH YOUR KEYS)
 // ==========================================
 const SUPABASE_URL = 'https://ivfxhrfqwzbvmiebrgfd.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_GTLlHlf7xyPjITGtlC-ozg_3myRnLWM';
@@ -128,13 +128,18 @@ console.log('📢 Your Chat ID:', myChatDocId);
 // ==========================================
 async function registerUser() {
     const time = Math.floor(Date.now() / 1000);
-    await supabase.from('users').insert({
-        id: myChatDocId,
-        name: 'Student Auto',
-        phone: 'TikTok',
-        status: 'active',
-        created_at: time
-    }).then(() => console.log("✅ User Registered")).catch(() => {});
+    try {
+        await supabase.from('users').insert({
+            id: myChatDocId,
+            name: 'Student Auto',
+            phone: 'TikTok',
+            status: 'active',
+            created_at: time
+        });
+        console.log("✅ User Registered");
+    } catch (error) {
+        console.log("⚠️ User already exists or error:", error.message);
+    }
 }
 registerUser();
 
@@ -142,28 +147,59 @@ registerUser();
 // 🔥 UPLOAD TO IMGBB
 // ==========================================
 async function uploadToImgBB(file) {
-    const formData = new FormData();
-    formData.append('image', file);
-    const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_API_KEY}`, { method: 'POST', body: formData });
-    const data = await res.json();
-    return data.success ? data.data.url : null;
+    try {
+        const formData = new FormData();
+        formData.append('image', file);
+        const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_API_KEY}`, { 
+            method: 'POST', 
+            body: formData 
+        });
+        const data = await res.json();
+        if (data.success) {
+            return data.data.url;
+        } else {
+            console.error('ImgBB upload failed:', data);
+            return null;
+        }
+    } catch (error) {
+        console.error('Upload error:', error);
+        return null;
+    }
 }
 
 // ==========================================
 // 🔥 SEND MESSAGE TO SUPABASE
 // ==========================================
 async function sendMessage(type, content) {
-    const finalContent = type === 'text' ? content : await uploadToImgBB(content);
-    if (!finalContent && type !== 'text') return;
+    let finalContent = content;
+    let fileUrl = '';
+    
+    if (type === 'text') {
+        finalContent = content;
+    } else {
+        // For media, content is the file object
+        const url = await uploadToImgBB(content);
+        if (!url) {
+            alert('Failed to upload media. Please try again.');
+            return;
+        }
+        fileUrl = url;
+        finalContent = `Sent a ${type}`;
+    }
 
-    await supabase.from('messages').insert({
-        chat_id: myChatDocId,
-        sender: 'user',
-        type: type,
-        message_text: type === 'text' ? content : `Sent a ${type}`,
-        file_url: type !== 'text' ? finalContent : '',
-        time_now: Date.now()
-    });
+    try {
+        await supabase.from('messages').insert({
+            chat_id: myChatDocId,
+            sender: 'user',
+            type: type,
+            message_text: finalContent,
+            file_url: fileUrl,
+            time_now: Date.now()
+        });
+        console.log('✅ Message sent');
+    } catch (error) {
+        console.error('Send message error:', error);
+    }
 }
 
 // ==========================================
@@ -171,7 +207,11 @@ async function sendMessage(type, content) {
 // ==========================================
 function loadMessages() {
     const chatBox = document.getElementById('chatBox');
-    supabase.channel(`room:${myChatDocId}`)
+    
+    // Subscribe to real-time changes
+    const channel = supabase.channel(`room:${myChatDocId}`);
+    
+    channel
         .on('postgres_changes', { 
             event: 'INSERT', 
             schema: 'public', 
@@ -182,6 +222,31 @@ function loadMessages() {
             chatBox.scrollTop = chatBox.scrollHeight;
         })
         .subscribe();
+    
+    // Load existing messages
+    loadExistingMessages();
+}
+
+async function loadExistingMessages() {
+    try {
+        const { data, error } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('chat_id', myChatDocId)
+            .order('time_now', { ascending: true });
+            
+        if (error) {
+            console.error('Error loading messages:', error);
+            return;
+        }
+        
+        const chatBox = document.getElementById('chatBox');
+        chatBox.innerHTML = '';
+        data.forEach(msg => renderMessage(msg));
+        chatBox.scrollTop = chatBox.scrollHeight;
+    } catch (error) {
+        console.error('Load messages error:', error);
+    }
 }
 
 function renderMessage(data) {
@@ -192,14 +257,61 @@ function renderMessage(data) {
 
     if (data.type === 'text') {
         msgDiv.innerHTML = `<span>${data.message_text}</span>`;
-    } else {
-        const media = document.createElement(data.type === 'image' ? 'img' : data.type);
-        media.src = data.file_url;
-        if (data.type !== 'image') media.controls = true;
-        msgDiv.appendChild(media);
+    } else if (data.type === 'image') {
+        const img = document.createElement('img');
+        img.src = data.file_url;
+        img.alt = 'Image';
+        img.style.maxWidth = '100%';
+        img.style.maxHeight = '200px';
+        img.style.borderRadius = '6px';
+        img.onclick = () => openLightbox(data.file_url, 'image');
+        msgDiv.appendChild(img);
+    } else if (data.type === 'video') {
+        const video = document.createElement('video');
+        video.src = data.file_url;
+        video.controls = true;
+        video.style.maxWidth = '100%';
+        video.style.maxHeight = '200px';
+        video.style.borderRadius = '6px';
+        video.onclick = () => openLightbox(data.file_url, 'video');
+        msgDiv.appendChild(video);
+    } else if (data.type === 'audio') {
+        const audio = document.createElement('audio');
+        audio.src = data.file_url;
+        audio.controls = true;
+        audio.style.maxWidth = '100%';
+        msgDiv.appendChild(audio);
     }
+    
     chatBox.appendChild(msgDiv);
 }
+
+// ==========================================
+// 🔥 MEDIA LIGHTBOX
+// ==========================================
+function openLightbox(url, type) {
+    const lightbox = document.getElementById('mediaLightbox');
+    const content = document.getElementById('mediaLightboxContent');
+    lightbox.style.display = 'flex';
+    
+    if (type === 'image') {
+        content.innerHTML = `<img src="${url}" alt="Media">`;
+    } else if (type === 'video') {
+        content.innerHTML = `<video src="${url}" controls autoplay style="max-width:100%;max-height:100%;"></video>`;
+    }
+}
+
+document.getElementById('mediaLightboxCloseBtn').addEventListener('click', () => {
+    document.getElementById('mediaLightbox').style.display = 'none';
+    document.getElementById('mediaLightboxContent').innerHTML = '';
+});
+
+document.getElementById('mediaLightbox').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) {
+        document.getElementById('mediaLightbox').style.display = 'none';
+        document.getElementById('mediaLightboxContent').innerHTML = '';
+    }
+});
 
 // ==========================================
 // 🔥 EVENT LISTENERS
@@ -226,37 +338,63 @@ document.getElementById('msgInput').addEventListener('keypress', (e) => {
 document.getElementById('mediaInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 1548576) { alert('File size limit is 1.5MB.'); return; }
-    const url = await uploadToImgBB(file);
-    if(url) {
-        const type = file.type.startsWith('image/') ? 'image' : 
-                     file.type.startsWith('video/') ? 'video' : 
-                     file.type.startsWith('audio/') ? 'audio' : 'text';
-        sendMessage(type, url);
+    
+    // Check file size (1.5MB limit)
+    if (file.size > 1572864) { 
+        alert('File size limit is 1.5MB.'); 
+        e.target.value = '';
+        return;
     }
+    
+    const type = file.type.startsWith('image/') ? 'image' : 
+                 file.type.startsWith('video/') ? 'video' : 
+                 file.type.startsWith('audio/') ? 'audio' : 'text';
+    
+    await sendMessage(type, file);
+    e.target.value = '';
 });
 
 let mediaRecorder, audioChunks = [], isRecording = false;
 document.getElementById('voiceBtn').addEventListener('click', async () => {
     if (!isRecording) {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-        mediaRecorder = new MediaRecorder(stream);
-        audioChunks = [];
-        mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-        mediaRecorder.onstop = async () => {
-            const blob = new Blob(audioChunks, { type: 'audio/mp3' });
-            const url = await uploadToImgBB(blob);
-            if(url) sendMessage('audio', url);
-        };
-        mediaRecorder.start();
-        isRecording = true;
-        document.getElementById('voiceBtn').textContent = '🛑';
-        document.getElementById('voiceBtn').classList.add('recording');
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream);
+            audioChunks = [];
+            mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+            mediaRecorder.onstop = async () => {
+                const blob = new Blob(audioChunks, { type: 'audio/mp3' });
+                await sendMessage('audio', blob);
+            };
+            mediaRecorder.start();
+            isRecording = true;
+            document.getElementById('voiceBtn').textContent = '🛑';
+            document.getElementById('voiceBtn').classList.add('recording');
+        } catch (error) {
+            alert('Microphone access denied. Please allow microphone permissions.');
+        }
     } else {
         mediaRecorder.stop();
         isRecording = false;
         document.getElementById('voiceBtn').textContent = '🎙️';
         document.getElementById('voiceBtn').classList.remove('recording');
+    }
+});
+
+// Notification button (demo)
+document.getElementById('notifBtn').addEventListener('click', function() {
+    const status = document.getElementById('notifStatus');
+    if (status.textContent === '🔔 Notifications Off') {
+        status.textContent = '🔔 Notifications On';
+        this.textContent = '🔔 Disable';
+        this.style.background = '#43a047';
+        if ('Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
+        }
+    } else {
+        status.textContent = '🔔 Notifications Off';
+        this.textContent = '🔔 Enable';
+        this.style.background = '#F4B400';
     }
 });
 
@@ -270,12 +408,14 @@ document.addEventListener('DOMContentLoaded', () => {
     window.addEventListener('beforeinstallprompt', (e) => {
         e.preventDefault();
         deferredPrompt = e;
+        installBtn.style.display = 'inline-block';
     });
 
     installBtn?.addEventListener('click', async () => {
         if (deferredPrompt) {
             deferredPrompt.prompt();
-            await deferredPrompt.userChoice;
+            const result = await deferredPrompt.userChoice;
+            console.log('User choice:', result);
             deferredPrompt = null;
         } else if (helpOverlay) {
             helpOverlay.style.display = 'flex';
@@ -295,6 +435,9 @@ document.addEventListener('DOMContentLoaded', () => {
 // 🔥 START
 // ==========================================
 loadMessages();
+
+console.log('🚀 Teach Hub is running with Supabase!');
+console.log('📱 Your Chat ID:', myChatDocId);
 </script>
 </body>
 </html>
