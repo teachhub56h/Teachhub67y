@@ -20,7 +20,6 @@
         .btn-delete-all { background: #c62828; color: white; }
 
         .user-list { flex: 1; overflow-y: auto; padding: 8px 0; background: #ffffff; }
-
         .user-item { display: flex; flex-direction: column; padding: 12px 16px; border-bottom: 1px solid #f0f0f0; transition: background 0.2s; position: relative; }
         .user-item:hover { background: #f5f6f6; }
         .user-item.selected { background: #e3f2fd; border-left: 4px solid #1B84D8; }
@@ -127,12 +126,13 @@
     <div id="mediaLightboxContent"></div>
 </div>
 
+<!-- 🔥 FIREBASE SDK - Realtime Database -->
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
 
 <script>
 // ==========================================
-// 🔥 FIREBASE CONFIG
+// 🔥 FIREBASE CONFIG (Realtime Database)
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
@@ -140,11 +140,12 @@ const firebaseConfig = {
     projectId: "newpro-affc8",
     storageBucket: "newpro-affc8.firebasestorage.app",
     messagingSenderId: "1080341611919",
-    appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
+    appId: "1:1080341611919:web:373d7fa13901e4b41c77fa",
+    databaseURL: "https://newpro-affe3-default-rtdb.firebaseio.com/"
 };
 
 firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+const db = firebase.database();
 
 // ==========================================
 // 🔥 IMGBB API KEY
@@ -216,21 +217,14 @@ const toBase64 = file => new Promise((resolve, reject) => {
 });
 
 // ==========================================
-// 🔥 FAST DELETE USER (Batch Delete)
+// 🔥 DELETE USER (Realtime Database)
 // ==========================================
 async function deleteUserCompletely(docId, userName) {
     try {
-        // 🔥 Delete ALL messages in ONE GO
-        const messagesRef = db.collection('group_messages').doc(docId).collection('messages');
-        const snapshot = await messagesRef.get();
-        const batch = db.batch();
-        snapshot.docs.forEach((doc) => {
-            batch.delete(doc.ref);
-        });
-        await batch.commit();
-        
-        // 🔥 Delete user document
-        await db.collection('group_messages').doc(docId).delete();
+        // Delete all messages
+        await db.ref('chats/' + docId + '/messages').remove();
+        // Delete user
+        await db.ref('chats/' + docId).remove();
         
         let savedNames = localStorage.getItem('chatUserNames');
         if (savedNames) {
@@ -238,7 +232,7 @@ async function deleteUserCompletely(docId, userName) {
             delete savedNames[docId];
             localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
         }
-        console.log(`✅ Fast deleted user: ${userName} (${docId})`);
+        console.log(`✅ Deleted user: ${userName} (${docId})`);
         return true;
     } catch (error) {
         console.error("Error deleting user:", error);
@@ -247,32 +241,19 @@ async function deleteUserCompletely(docId, userName) {
 }
 
 // ==========================================
-// 🔥 DELETE ALL USERS (Batch Delete)
+// 🔥 DELETE ALL USERS
 // ==========================================
 async function deleteAllUsers() {
     if (!confirm('⚠️ Delete ALL users and ALL messages? This cannot be undone!')) return;
     
     try {
-        const snapshot = await db.collection('group_messages').get();
-        const batch = db.batch();
-        
-        for (const doc of snapshot.docs) {
-            // Delete all messages
-            const msgSnapshot = await db.collection('group_messages').doc(doc.id).collection('messages').get();
-            msgSnapshot.docs.forEach((msg) => {
-                batch.delete(msg.ref);
-            });
-            // Delete user
-            batch.delete(doc.ref);
-        }
-        
-        await batch.commit();
+        await db.ref('chats').remove();
         localStorage.removeItem('chatUserNames');
         alert('✅ All users and messages deleted!');
         loadInbox();
     } catch (error) {
-        console.error("Error deleting all:", error);
-        alert('❌ Error deleting all users');
+        console.error("Error:", error);
+        alert('❌ Error: ' + error.message);
     }
 }
 
@@ -281,13 +262,22 @@ async function deleteAllUsers() {
 // ==========================================
 async function autoClearOldMessages(docId) {
     try {
-        const messagesRef = db.collection('group_messages').doc(docId).collection('messages');
-        const snapshot = await messagesRef.orderBy('time_now', 'asc').get();
+        const snapshot = await db.ref('chats/' + docId + '/messages')
+            .orderByChild('time_now')
+            .limitToFirst(1)
+            .once('value');
         
-        if (snapshot.size > 70) {
-            const oldestDoc = snapshot.docs[0];
-            await messagesRef.doc(oldestDoc.id).delete();
-            console.log(`✅ Deleted 1 old message for ${docId}. Now ${snapshot.size - 1} messages remaining.`);
+        const msgs = snapshot.val();
+        if (!msgs) return;
+        
+        // Count total messages
+        const totalSnapshot = await db.ref('chats/' + docId + '/messages').once('value');
+        const totalCount = totalSnapshot.numChildren ? totalSnapshot.numChildren() : 0;
+        
+        if (totalCount > 70) {
+            const oldestKey = Object.keys(msgs)[0];
+            await db.ref('chats/' + docId + '/messages/' + oldestKey).remove();
+            console.log(`✅ Deleted 1 old message for ${docId}. Now ${totalCount - 1} messages remaining.`);
         }
     } catch (error) {
         console.error("Auto-clear error:", error);
@@ -335,11 +325,11 @@ async function deleteSelectedUsers() {
 }
 
 // ==========================================
-// 🔥 UPDATE STATUS
+// 🔥 UPDATE STATUS (Realtime Database)
 // ==========================================
 async function updateCustomerStatus(docId, newStatus) {
     try {
-        await db.collection('group_messages').doc(docId).update({ statusTag: newStatus });
+        await db.ref('chats/' + docId + '/statusTag').set(newStatus);
     } catch (error) {
         console.error("Error updating status: ", error);
     }
@@ -382,14 +372,15 @@ async function checkInactiveUsers() {
     const twoDaysAgo = now - (48 * 60 * 60 * 1000);
     
     try {
-        const snapshot = await db.collection('group_messages').get();
-        for (const doc of snapshot.docs) {
-            const data = doc.data();
+        const snapshot = await db.ref('chats').once('value');
+        const chats = snapshot.val();
+        if (!chats) return;
+        
+        for (const [docId, data] of Object.entries(chats)) {
             const lastUpdated = data.lastUpdated || 0;
-            
             if (lastUpdated < twoDaysAgo) {
-                const userName = getUserFriendlyName(doc.id);
-                await deleteUserCompletely(doc.id, userName);
+                const userName = getUserFriendlyName(docId);
+                await deleteUserCompletely(docId, userName);
                 console.log(`✅ Auto-deleted inactive user: ${userName}`);
             }
         }
@@ -399,7 +390,7 @@ async function checkInactiveUsers() {
 }
 
 // ==========================================
-// 🔥 LOAD INBOX
+// 🔥 LOAD INBOX (Realtime Database)
 // ==========================================
 function loadInbox() {
     inboxView.style.display = 'flex';
@@ -411,100 +402,89 @@ function loadInbox() {
 
     userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>Loading...</div>";
 
-    db.collection('group_messages')
-        .orderBy('lastUpdated', 'desc')
-        .onSnapshot((snapshot) => {
-            userListDiv.innerHTML = "";
+    db.ref('chats').on('value', (snapshot) => {
+        userListDiv.innerHTML = "";
+        const chats = snapshot.val();
+        
+        if (!chats) {
+            userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>No users found.</div>";
+            return;
+        }
+
+        // Sort by lastUpdated
+        const sortedChats = Object.entries(chats).sort((a, b) => {
+            return (b[1].lastUpdated || 0) - (a[1].lastUpdated || 0);
+        });
+
+        for (const [docId, docData] of sortedChats) {
+            const userName = getUserFriendlyName(docId);
+            const activeStatus = docData.statusTag || "";
+
+            let tagClass = "status-tag";
+            if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
+            else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
+            else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
+            else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
+            else if (activeStatus !== "") tagClass += " custom";
+
+            const isSelected = selectedUsers.has(docId);
+
+            const itemDiv = document.createElement('div');
+            itemDiv.className = `user-item ${isSelected ? 'selected' : ''}`;
+            itemDiv.id = `user-item-${docId}`;
             
-            if (snapshot.empty) {
-                userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>No users found.</div>";
-                return;
+            // Count messages
+            let msgCount = 0;
+            if (docData.messages) {
+                msgCount = Object.keys(docData.messages).length;
+            }
+            
+            // Count unread
+            let unreadCount = 0;
+            if (docData.messages) {
+                for (const [msgId, msg] of Object.entries(docData.messages)) {
+                    if (msg.sender === 'user' && msg.status !== 'read') {
+                        unreadCount++;
+                    }
+                }
             }
 
-            snapshot.forEach((doc) => {
-                const docId = doc.id;
-                const docData = doc.data();
-                const userName = getUserFriendlyName(docId);
-                const activeStatus = docData.statusTag || "";
-
-                let tagClass = "status-tag";
-                if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
-                else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
-                else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
-                else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
-                else if (activeStatus !== "") tagClass += " custom";
-
-                const isSelected = selectedUsers.has(docId);
-
-                const itemDiv = document.createElement('div');
-                itemDiv.className = `user-item ${isSelected ? 'selected' : ''}`;
-                itemDiv.id = `user-item-${docId}`;
-                itemDiv.innerHTML = `
-                    <div style="display:flex;align-items:center;gap:10px;width:100%;">
-                        <input type="checkbox" class="select-checkbox" id="checkbox-${docId}" 
-                               onchange="toggleUserSelection('${docId}', this)" 
-                               ${isSelected ? 'checked' : ''}>
-                        <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
-                            <div class="user-avatar">🎓</div>
-                            <div class="user-details">
-                                <div class="user-phone">${userName}</div>
-                                <div class="user-subtitle" id="subtitle-${docId}">ID: ${docId.substring(0, 12)}...</div>
-                            </div>
-                            <div id="badge-${docId}" class="unread-badge" style="display:none;">0</div>
+            itemDiv.innerHTML = `
+                <div style="display:flex;align-items:center;gap:10px;width:100%;">
+                    <input type="checkbox" class="select-checkbox" id="checkbox-${docId}" 
+                           onchange="toggleUserSelection('${docId}', this)" 
+                           ${isSelected ? 'checked' : ''}>
+                    <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
+                        <div class="user-avatar">🎓</div>
+                        <div class="user-details">
+                            <div class="user-phone">${userName}</div>
+                            <div class="user-subtitle" id="subtitle-${docId}">ID: ${docId.substring(0, 12)}... | Msgs: ${msgCount}</div>
                         </div>
+                        ${unreadCount > 0 ? `<div id="badge-${docId}" class="unread-badge">${unreadCount}</div>` : ''}
                     </div>
-                    <div class="status-container">
-                        ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px;color:#aaa;">No tag</span>'}
-                        <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
-                            <option value="" disabled selected>Assign status...</option>
-                            <option value="Payment Pending">Payment Pending</option>
-                            <option value="Plan 1">Plan 1</option>
-                            <option value="Plan 2">Plan 2</option>
-                            <option value="Completed">Completed</option>
-                            <option value="custom">✍️ Custom Status...</option>
-                        </select>
-                        ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
-                        <button class="delete-user-btn" onclick="event.stopPropagation(); window.deleteUser('${docId}', '${userName}')">🗑 Delete</button>
-                    </div>
-                `;
-                userListDiv.appendChild(itemDiv);
+                </div>
+                <div class="status-container">
+                    ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px;color:#aaa;">No tag</span>'}
+                    <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
+                        <option value="" disabled selected>Assign status...</option>
+                        <option value="Payment Pending">Payment Pending</option>
+                        <option value="Plan 1">Plan 1</option>
+                        <option value="Plan 2">Plan 2</option>
+                        <option value="Completed">Completed</option>
+                        <option value="custom">✍️ Custom Status...</option>
+                    </select>
+                    ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
+                    <button class="delete-user-btn" onclick="event.stopPropagation(); window.deleteUser('${docId}', '${userName}')">🗑 Delete</button>
+                </div>
+            `;
+            userListDiv.appendChild(itemDiv);
 
-                // Count unread
-                db.collection('group_messages')
-                    .doc(docId)
-                    .collection('messages')
-                    .where('sender', '==', 'user')
-                    .where('status', '==', 'sent')
-                    .onSnapshot((msgSnap) => {
-                        const badge = document.getElementById(`badge-${docId}`);
-                        if (badge) {
-                            const count = msgSnap.size;
-                            if (count > 0) {
-                                badge.textContent = count;
-                                badge.style.display = 'flex';
-                            } else {
-                                badge.style.display = 'none';
-                            }
-                        }
-                    });
-                
-                // Count total messages & auto-clear
-                db.collection('group_messages')
-                    .doc(docId)
-                    .collection('messages')
-                    .get()
-                    .then((msgSnap) => {
-                        const count = msgSnap.size;
-                        const subtitle = document.getElementById(`subtitle-${docId}`);
-                        if (subtitle) {
-                            subtitle.textContent = `ID: ${docId.substring(0, 12)}... | Msgs: ${count}`;
-                        }
-                        if (count > 70) {
-                            autoClearOldMessages(docId);
-                        }
-                    });
-            });
-        });
+            // Auto-clear if > 70
+            if (msgCount > 70) {
+                autoClearOldMessages(docId);
+            }
+        }
+    });
 }
 
 // ==========================================
@@ -513,7 +493,7 @@ function loadInbox() {
 window.goBackToInbox = function() { loadInbox(); };
 
 // ==========================================
-// 🔥 OPEN CHAT
+// 🔥 OPEN CHAT (Realtime Database)
 // ==========================================
 window.openChat = function(docId, userName) {
     activeDocId = docId;
@@ -524,44 +504,26 @@ window.openChat = function(docId, userName) {
 
     if (activeChatListener) { activeChatListener(); activeChatListener = null; }
 
-    activeChatListener = db.collection('group_messages')
-        .doc(docId)
-        .collection('messages')
-        .orderBy('time_now', 'asc')
-        .onSnapshot((snapshot) => {
-            let hasNew = false;
+    activeChatListener = db.ref('chats/' + docId + '/messages')
+        .orderByChild('time_now')
+        .on('child_added', (snapshot) => {
+            const data = snapshot.val();
             
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === 'added') {
-                    const data = change.doc.data();
-                    if (data.sender === 'user' && data.status !== 'read') {
-                        hasNew = true;
-                        db.collection('group_messages')
-                            .doc(docId)
-                            .collection('messages')
-                            .doc(change.doc.id)
-                            .update({ status: 'read' });
-                    }
-                    renderMessage(data);
-                }
-            });
-
-            if (hasNew) {
-                msgSound.play().catch(() => {});
+            // Mark as read if from user
+            if (data.sender === 'user' && data.status !== 'read') {
+                db.ref('chats/' + docId + '/messages/' + snapshot.key + '/status').set('read');
             }
             
+            renderMessage(snapshot.key, data);
             chatBox.scrollTop = chatBox.scrollHeight;
-            
-            if (snapshot.size > 70) {
-                autoClearOldMessages(docId);
-            }
         });
 };
 
 // ==========================================
 // 🔥 RENDER MESSAGE
 // ==========================================
-function renderMessage(data) {
+function renderMessage(msgId, data) {
+    if (!data) return;
     const msgDiv = document.createElement('div');
     const isMe = data.sender === 'admin';
     msgDiv.classList.add('msg', isMe ? 'sent-by-me' : 'received-by-me');
@@ -617,7 +579,7 @@ document.getElementById('mediaLightbox').addEventListener('click', (e) => {
 });
 
 // ==========================================
-// 🔥 SEND MESSAGE
+// 🔥 SEND MESSAGE (Realtime Database)
 // ==========================================
 async function sendMessageToFirebase(type, content) {
     if (!activeDocId) return;
@@ -651,10 +613,8 @@ async function sendMessageToFirebase(type, content) {
         status: 'sent'
     };
     
-    await db.collection('group_messages').doc(activeDocId).collection('messages').add(msgData);
-    await db.collection('group_messages').doc(activeDocId).set({ 
-        lastUpdated: timestamp
-    }, { merge: true });
+    await db.ref('chats/' + activeDocId + '/messages').push(msgData);
+    await db.ref('chats/' + activeDocId + '/lastUpdated').set(timestamp);
 }
 
 // ==========================================
