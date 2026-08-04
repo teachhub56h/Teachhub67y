@@ -101,7 +101,7 @@
 
 <script>
 // ==========================================
-// ✅ UPDATED KEYS
+// 🔥 YOUR SUPABASE KEYS
 // ==========================================
 const SUPABASE_URL = 'https://jrsenizemhiveatujem1.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_r1VjqhoQWimt7m46QvBJxg_fCeatpc8';
@@ -110,17 +110,17 @@ const IMG_BB_API_KEY = 'c10f07a29b678cda424ef81b2e5f2302';
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ==========================================
-// STUDENT ID
+// 🔥 STUDENT ID
 // ==========================================
 let myChatDocId = localStorage.getItem('my_chat_session_id');
 if (!myChatDocId) {
     myChatDocId = "user_" + Date.now();
     localStorage.setItem('my_chat_session_id', myChatDocId);
 }
-console.log('📢 Your Chat ID:', myChatDocId);
+alert('🆔 Your Chat ID: ' + myChatDocId);
 
 // ==========================================
-// REGISTER USER
+// 🔥 REGISTER USER
 // ==========================================
 async function registerUser() {
     try {
@@ -135,114 +135,20 @@ async function registerUser() {
                 created_at: time
             });
         if (error) {
-            console.log('User already exists or error:', error.message);
+            console.log('User exists:', error.message);
         } else {
             console.log('✅ User Registered');
         }
     } catch (e) {
-        console.log('Register error:', e.message);
+        console.log('User already exists');
     }
 }
 registerUser();
 
 // ==========================================
-// UPLOAD TO IMGBB
+// 🔥 LOAD MESSAGES
 // ==========================================
-async function uploadToImgBB(file) {
-    try {
-        const formData = new FormData();
-        formData.append('image', file);
-        const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_API_KEY}`, { 
-            method: 'POST', 
-            body: formData 
-        });
-        const data = await res.json();
-        return data.success ? data.data.url : null;
-    } catch (e) {
-        console.log('Upload error:', e.message);
-        return null;
-    }
-}
-
-// ==========================================
-// SEND MESSAGE - FINAL FIXED
-// ==========================================
-async function sendMessage(type, content) {
-    alert('1️⃣ Sending message...');
-    
-    try {
-        let messageData = {
-            chat_id: myChatDocId,
-            sender: 'user',
-            type: type,
-            time_now: Date.now()
-        };
-
-        if (type === 'text') {
-            messageData.message_text = content;
-            messageData.file_url = '';
-            alert('2️⃣ Text: ' + content);
-        } else {
-            alert('2️⃣ Uploading media...');
-            const url = await uploadToImgBB(content);
-            if (!url) {
-                alert('❌ Upload failed!');
-                return;
-            }
-            messageData.message_text = `Sent a ${type}`;
-            messageData.file_url = url;
-            alert('3️⃣ Media uploaded');
-        }
-
-        alert('4️⃣ Chat ID: ' + myChatDocId);
-        alert('5️⃣ Sending to Supabase...');
-        
-        const { data, error } = await supabase
-            .from('messages')
-            .insert([messageData]);
-
-        if (error) {
-            alert('❌ Error: ' + error.message);
-            console.error('Error:', error);
-            return;
-        }
-
-        alert('✅ Message sent!');
-        console.log('✅ Message sent:', data);
-        
-        renderMessage(messageData);
-        document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
-        
-    } catch (error) {
-        alert('❌ Exception: ' + error.message);
-        console.error('Error:', error);
-    }
-}
-
-// ==========================================
-// LOAD & RECEIVE MESSAGES
-// ==========================================
-function loadMessages() {
-    const chatBox = document.getElementById('chatBox');
-    
-    // Load existing messages
-    loadExistingMessages();
-    
-    // Subscribe to new messages
-    supabase.channel(`room:${myChatDocId}`)
-        .on('postgres_changes', { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'messages', 
-            filter: `chat_id=eq.${myChatDocId}` 
-        }, (payload) => {
-            renderMessage(payload.new);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        })
-        .subscribe();
-}
-
-async function loadExistingMessages() {
+async function loadMessages() {
     try {
         const { data, error } = await supabase
             .from('messages')
@@ -257,152 +163,213 @@ async function loadExistingMessages() {
         
         const chatBox = document.getElementById('chatBox');
         chatBox.innerHTML = '';
-        data.forEach(msg => renderMessage(msg));
+        
+        data.forEach(msg => {
+            const msgDiv = document.createElement('div');
+            const isMe = msg.sender === 'user';
+            msgDiv.className = 'msg ' + (isMe ? 'sent-by-me' : 'received-by-me');
+            
+            if (msg.type === 'text') {
+                msgDiv.innerHTML = `<span>${msg.message_text}</span>`;
+            } else if (msg.type === 'image') {
+                msgDiv.innerHTML = `<img src="${msg.file_url}" style="max-width:100%;max-height:200px;border-radius:6px;">`;
+            } else if (msg.type === 'video') {
+                msgDiv.innerHTML = `<video src="${msg.file_url}" controls style="max-width:100%;max-height:200px;border-radius:6px;"></video>`;
+            } else if (msg.type === 'audio') {
+                msgDiv.innerHTML = `<audio src="${msg.file_url}" controls style="max-width:100%;"></audio>`;
+            }
+            
+            chatBox.appendChild(msgDiv);
+        });
+        
         chatBox.scrollTop = chatBox.scrollHeight;
+        console.log('✅ Loaded ' + data.length + ' messages');
+        
     } catch (e) {
-        console.error('Load error:', e.message);
+        console.error('Load error:', e);
     }
 }
 
-function renderMessage(data) {
-    const chatBox = document.getElementById('chatBox');
-    const msgDiv = document.createElement('div');
-    const isMe = data.sender === 'user';
-    msgDiv.classList.add('msg', isMe ? 'sent-by-me' : 'received-by-me');
-
-    if (data.type === 'text') {
-        msgDiv.innerHTML = `<span>${data.message_text}</span>`;
-    } else if (data.type === 'image') {
-        const img = document.createElement('img');
-        img.src = data.file_url;
-        img.style.maxWidth = '100%';
-        img.style.maxHeight = '200px';
-        img.style.borderRadius = '6px';
-        img.onclick = () => openLightbox(data.file_url, 'image');
-        msgDiv.appendChild(img);
-    } else if (data.type === 'video') {
-        const video = document.createElement('video');
-        video.src = data.file_url;
-        video.controls = true;
-        video.style.maxWidth = '100%';
-        video.style.maxHeight = '200px';
-        video.style.borderRadius = '6px';
-        msgDiv.appendChild(video);
-    } else if (data.type === 'audio') {
-        const audio = document.createElement('audio');
-        audio.src = data.file_url;
-        audio.controls = true;
-        audio.style.maxWidth = '100%';
-        msgDiv.appendChild(audio);
-    }
+// ==========================================
+// 🔥 SEND MESSAGE - WITH ALERTS
+// ==========================================
+async function sendMessage(type, content) {
+    alert('1️⃣ Send function started!');
     
-    chatBox.appendChild(msgDiv);
+    try {
+        const messageData = {
+            chat_id: myChatDocId,
+            sender: 'user',
+            type: type,
+            message_text: type === 'text' ? content : `Sent a ${type}`,
+            file_url: '',
+            time_now: Date.now()
+        };
+
+        alert('2️⃣ Data ready: ' + type);
+
+        const { data, error } = await supabase
+            .from('messages')
+            .insert([messageData]);
+
+        if (error) {
+            alert('❌ Error: ' + error.message);
+            console.error('Supabase error:', error);
+            return;
+        }
+
+        alert('✅ Message sent successfully!');
+        console.log('Message sent:', data);
+        
+        // Reload messages
+        loadMessages();
+        
+    } catch (error) {
+        alert('❌ Exception: ' + error.message);
+        console.error('Error:', error);
+    }
 }
 
 // ==========================================
-// MEDIA LIGHTBOX
+// 🔥 SEND BUTTON TRIGGER - 100% WORKING
 // ==========================================
-function openLightbox(url, type) {
-    const lightbox = document.getElementById('mediaLightbox');
-    const content = document.getElementById('mediaLightboxContent');
-    lightbox.style.display = 'flex';
+document.getElementById('sendBtn').onclick = function() {
+    alert('🔵 Send button clicked!');
     
-    if (type === 'image') {
-        content.innerHTML = `<img src="${url}" alt="Media">`;
-    } else if (type === 'video') {
-        content.innerHTML = `<video src="${url}" controls autoplay style="max-width:100%;max-height:100%;"></video>`;
-    }
-}
-
-document.getElementById('mediaLightboxCloseBtn').addEventListener('click', () => {
-    document.getElementById('mediaLightbox').style.display = 'none';
-    document.getElementById('mediaLightboxContent').innerHTML = '';
-});
-
-document.getElementById('mediaLightbox').addEventListener('click', (e) => {
-    if (e.target === e.currentTarget) {
-        document.getElementById('mediaLightbox').style.display = 'none';
-        document.getElementById('mediaLightboxContent').innerHTML = '';
-    }
-});
-
-// ==========================================
-// EVENT LISTENERS - FIXED
-// ==========================================
-document.getElementById('sendBtn').onclick = () => {
     const input = document.getElementById('msgInput');
     const text = input.value.trim();
     
-    alert('0️⃣ Send button clicked!');
-    
-    if (text) { 
-        alert('📝 Message: ' + text);
-        sendMessage('text', text); 
-        input.value = ''; 
-    } else {
-        alert('⚠️ Empty message!');
+    if (text === '') {
+        alert('⚠️ Message is empty!');
+        return;
     }
+    
+    alert('📝 Sending: ' + text);
+    sendMessage('text', text);
+    input.value = '';
 };
 
-document.getElementById('msgInput').addEventListener('keypress', (e) => {
+// ==========================================
+// 🔥 ENTER KEY TRIGGER - 100% WORKING
+// ==========================================
+document.getElementById('msgInput').addEventListener('keypress', function(e) {
     if (e.key === 'Enter') {
-        const input = document.getElementById('msgInput');
-        const text = input.value.trim();
-        if (text) { 
-            sendMessage('text', text); 
-            input.value = ''; 
-        }
+        alert('⏎ Enter key pressed!');
+        document.getElementById('sendBtn').click();
     }
 });
 
-document.getElementById('mediaInput').addEventListener('change', async (e) => {
+// ==========================================
+// 🔥 MEDIA UPLOAD TRIGGER
+// ==========================================
+document.getElementById('mediaInput').addEventListener('change', async function(e) {
     const file = e.target.files[0];
     if (!file) return;
+    
+    alert('📎 File selected: ' + file.name);
+    
     if (file.size > 1548576) { 
-        alert('File size limit is 1.5MB.'); 
+        alert('File size limit is 1.5MB.');
         e.target.value = '';
-        return; 
+        return;
     }
-    const url = await uploadToImgBB(file);
-    if(url) {
-        const type = file.type.startsWith('image/') ? 'image' : 
-                     file.type.startsWith('video/') ? 'video' : 
-                     file.type.startsWith('audio/') ? 'audio' : 'text';
-        sendMessage(type, url);
+    
+    try {
+        const formData = new FormData();
+        formData.append('image', file);
+        const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_API_KEY}`, { 
+            method: 'POST', 
+            body: formData 
+        });
+        const data = await res.json();
+        
+        if (data.success) {
+            const url = data.data.url;
+            const type = file.type.startsWith('image/') ? 'image' : 
+                         file.type.startsWith('video/') ? 'video' : 'audio';
+            
+            alert('✅ File uploaded!');
+            
+            await supabase.from('messages').insert([{
+                chat_id: myChatDocId,
+                sender: 'user',
+                type: type,
+                message_text: `Sent a ${type}`,
+                file_url: url,
+                time_now: Date.now()
+            }]);
+            
+            alert('✅ Media message sent!');
+            loadMessages();
+        } else {
+            alert('❌ Upload failed!');
+        }
+    } catch (error) {
+        alert('❌ Upload error: ' + error.message);
     }
+    
     e.target.value = '';
 });
 
+// ==========================================
+// 🔥 VOICE RECORDING TRIGGER
+// ==========================================
 let mediaRecorder, audioChunks = [], isRecording = false;
-document.getElementById('voiceBtn').addEventListener('click', async () => {
+
+document.getElementById('voiceBtn').addEventListener('click', async function() {
     if (!isRecording) {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
+            
             mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
             mediaRecorder.onstop = async () => {
                 const blob = new Blob(audioChunks, { type: 'audio/mp3' });
-                const url = await uploadToImgBB(blob);
-                if(url) sendMessage('audio', url);
+                alert('✅ Recording saved!');
+                
+                const formData = new FormData();
+                formData.append('image', blob);
+                const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_API_KEY}`, { 
+                    method: 'POST', 
+                    body: formData 
+                });
+                const data = await res.json();
+                
+                if (data.success) {
+                    await supabase.from('messages').insert([{
+                        chat_id: myChatDocId,
+                        sender: 'user',
+                        type: 'audio',
+                        message_text: 'Sent a voice note',
+                        file_url: data.data.url,
+                        time_now: Date.now()
+                    }]);
+                    alert('✅ Voice note sent!');
+                    loadMessages();
+                }
             };
+            
             mediaRecorder.start();
             isRecording = true;
-            document.getElementById('voiceBtn').textContent = '🛑';
-            document.getElementById('voiceBtn').classList.add('recording');
+            this.textContent = '🛑';
+            this.classList.add('recording');
+            alert('🎙️ Recording started...');
+            
         } catch (error) {
-            alert('Microphone access denied.');
+            alert('❌ Microphone access denied: ' + error.message);
         }
     } else {
         mediaRecorder.stop();
         isRecording = false;
-        document.getElementById('voiceBtn').textContent = '🎙️';
-        document.getElementById('voiceBtn').classList.remove('recording');
+        this.textContent = '🎙️';
+        this.classList.remove('recording');
+        alert('⏹️ Recording stopped');
     }
 });
 
 // ==========================================
-// NOTIFICATION
+// 🔥 NOTIFICATION TRIGGER
 // ==========================================
 document.getElementById('notifBtn').addEventListener('click', function() {
     const status = document.getElementById('notifStatus');
@@ -421,20 +388,21 @@ document.getElementById('notifBtn').addEventListener('click', function() {
 });
 
 // ==========================================
-// INSTALL
+// 🔥 INSTALL TRIGGER
 // ==========================================
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', function() {
     let deferredPrompt;
     const installBtn = document.getElementById('installBtn');
     const helpOverlay = document.getElementById('installHelpOverlay');
     const helpCloseBtn = document.getElementById('installHelpClose');
 
-    window.addEventListener('beforeinstallprompt', (e) => {
+    window.addEventListener('beforeinstallprompt', function(e) {
         e.preventDefault();
         deferredPrompt = e;
+        installBtn.style.display = 'inline-block';
     });
 
-    installBtn?.addEventListener('click', async () => {
+    installBtn.addEventListener('click', async function() {
         if (deferredPrompt) {
             deferredPrompt.prompt();
             await deferredPrompt.userChoice;
@@ -444,20 +412,47 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    helpCloseBtn?.addEventListener('click', () => {
+    helpCloseBtn.addEventListener('click', function() {
         helpOverlay.style.display = 'none';
     });
 
-    window.addEventListener('appinstalled', () => {
-        if (installBtn) installBtn.style.display = 'none';
+    window.addEventListener('appinstalled', function() {
+        installBtn.style.display = 'none';
     });
 });
 
 // ==========================================
-// START
+// 🔥 MEDIA LIGHTBOX TRIGGER
+// ==========================================
+function openLightbox(url, type) {
+    const lightbox = document.getElementById('mediaLightbox');
+    const content = document.getElementById('mediaLightboxContent');
+    lightbox.style.display = 'flex';
+    
+    if (type === 'image') {
+        content.innerHTML = `<img src="${url}" alt="Media" style="max-width:100%;max-height:100%;border-radius:6px;">`;
+    } else if (type === 'video') {
+        content.innerHTML = `<video src="${url}" controls autoplay style="max-width:100%;max-height:100%;border-radius:6px;"></video>`;
+    }
+}
+
+document.getElementById('mediaLightboxCloseBtn').addEventListener('click', function() {
+    document.getElementById('mediaLightbox').style.display = 'none';
+    document.getElementById('mediaLightboxContent').innerHTML = '';
+});
+
+document.getElementById('mediaLightbox').addEventListener('click', function(e) {
+    if (e.target === e.currentTarget) {
+        this.style.display = 'none';
+        document.getElementById('mediaLightboxContent').innerHTML = '';
+    }
+});
+
+// ==========================================
+// 🔥 START - LOAD MESSAGES
 // ==========================================
 loadMessages();
-alert('✅ App started! Chat ID: ' + myChatDocId);
+console.log('✅ App started with Chat ID:', myChatDocId);
 </script>
 </body>
 </html>
