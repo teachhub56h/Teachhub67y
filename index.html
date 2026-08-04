@@ -13,7 +13,6 @@
     <meta name="theme-color" content="#1B4F72">
 
     <style>
-        /* CSS - Bilkul waisa hi */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         body { background: #eef2f5; display: flex; justify-content: center; align-items: center; height: 100vh; }
         .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #f5f7f8; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
@@ -34,10 +33,7 @@
         .media-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 2000; align-items: center; justify-content: center; padding: 16px; }
         .media-lightbox img, .media-lightbox video { max-width: 100%; max-height: 100%; border-radius: 6px; }
         .media-lightbox-close { position: absolute; top: 16px; right: 16px; color: #fff; font-size: 30px; background: none; border: none; cursor: pointer; line-height: 1; }
-        .video-thumb { position: relative; cursor: pointer; }
-        .video-thumb .play-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 48px; height: 48px; background: rgba(0,0,0,0.55); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; pointer-events: none; }
-        .msg img, .msg .video-thumb video { cursor: pointer; }
-
+        
         .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background-color: #eef2f5; }
 
         .msg { max-width: 80%; padding: 6px 7px 6px 9px; border-radius: 8px; font-size: 14.5px; line-height: 1.4; word-wrap: break-word; position: relative; box-shadow: 0 1px 1px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 5px; }
@@ -46,13 +42,6 @@
         .msg img, .msg video { max-width: 100%; max-height: 200px; border-radius: 6px; display: block; object-fit: contain; }
         .msg audio { max-width: 100%; display: block; outline: none; }
 
-        .msg-meta { align-self: flex-end; display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #6b7a85; user-select: none; }
-
-        .tick { display: inline-block; font-weight: bold; font-size: 12px; margin-left: 1px; }
-        .tick.sent { color: #8696a0; }
-        .tick.delivered { color: #8696a0; }
-        .tick.read { color: #1B84D8; }
-
         .chat-input-area { padding: 10px; background: #e4e9ec; display: flex; align-items: center; gap: 8px; }
         .input-container { flex: 1; background: #fff; border-radius: 24px; display: flex; align-items: center; padding: 2px 12px; }
         .input-container input[type="text"] { flex: 1; border: none; outline: none; padding: 10px 4px; font-size: 15px; background: transparent; }
@@ -60,6 +49,50 @@
         .icon-btn.recording { color: #ea0038; animation: blink 1s infinite; }
         .send-btn { background: #1B4F72; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+
+        /* Debug Panel */
+        .debug-panel {
+            position: fixed;
+            bottom: 80px;
+            left: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.95);
+            color: #0f0;
+            padding: 10px;
+            border-radius: 10px;
+            font-size: 11px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 9999;
+            display: none;
+            font-family: monospace;
+            line-height: 1.6;
+            border: 2px solid #0f0;
+        }
+        .debug-panel .error { color: #ff4444; }
+        .debug-panel .success { color: #44ff44; }
+        .debug-panel .info { color: #44aaff; }
+        .debug-panel .warn { color: #ffaa44; }
+        
+        .debug-controls {
+            display: flex;
+            gap: 5px;
+            padding: 5px;
+            background: #d0d5da;
+            justify-content: center;
+        }
+        .debug-btn {
+            background: #1B4F72;
+            color: white;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 15px;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .debug-btn.red { background: #c0392b; }
+        .debug-btn.green { background: #27ae60; }
+        .debug-btn.orange { background: #e67e22; }
     </style>
 </head>
 <body>
@@ -85,7 +118,18 @@
         </div>
         <button class="send-btn" id="sendBtn">➤</button>
     </div>
+    
+    <!-- Debug Controls -->
+    <div class="debug-controls">
+        <button class="debug-btn" onclick="toggleDebug()">📋 Show Log</button>
+        <button class="debug-btn green" onclick="testSupabase()">🔍 Test DB</button>
+        <button class="debug-btn orange" onclick="loadExistingMessages()">🔄 Reload</button>
+        <button class="debug-btn red" onclick="clearLog()">🗑️ Clear</button>
+    </div>
 </div>
+
+<!-- Debug Panel -->
+<div class="debug-panel" id="debugPanel"></div>
 
 <div class="install-help-overlay" id="installHelpOverlay">
     <div class="install-help-box">
@@ -100,12 +144,11 @@
     <div id="mediaLightboxContent"></div>
 </div>
 
-<!-- ✅ SUPABASE + IMGBB SCRIPT -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
 // ==========================================
-// 🔥 KEYS (UPDATED WITH YOUR KEYS)
+// 🔥 YOUR KEYS
 // ==========================================
 const SUPABASE_URL = 'https://ivfxhrfqwzbvmiebrgfd.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_GTLlHlf7xyPjITGtlC-ozg_3myRnLWM';
@@ -114,31 +157,71 @@ const IMG_BB_API_KEY = 'c10f07a29b678cda424ef81b2e5f2302';
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ==========================================
-// 🔥 STUDENT ID GENERATE
+// 🔥 DEBUG SYSTEM
+// ==========================================
+let debugVisible = false;
+
+function logDebug(message, type = 'info') {
+    const panel = document.getElementById('debugPanel');
+    const time = new Date().toLocaleTimeString();
+    const emoji = type === 'error' ? '❌' : type === 'success' ? '✅' : type === 'warn' ? '⚠️' : 'ℹ️';
+    const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warn' ? 'warn' : 'info';
+    panel.innerHTML += `<div class="${className}">[${time}] ${emoji} ${message}</div>`;
+    panel.scrollTop = panel.scrollHeight;
+    console.log(`[${time}] ${message}`);
+}
+
+function toggleDebug() {
+    const panel = document.getElementById('debugPanel');
+    debugVisible = !debugVisible;
+    panel.style.display = debugVisible ? 'block' : 'none';
+    if (debugVisible) {
+        panel.innerHTML = '<div class="info">=== Debug Log Started ===</div>';
+        logDebug('Chat ID: ' + myChatDocId);
+        logDebug('Supabase URL: ' + SUPABASE_URL);
+    }
+}
+
+function clearLog() {
+    document.getElementById('debugPanel').innerHTML = '<div class="info">=== Log Cleared ===</div>';
+}
+
+// ==========================================
+// 🔥 STUDENT ID
 // ==========================================
 let myChatDocId = localStorage.getItem('my_chat_session_id');
 if (!myChatDocId) {
     myChatDocId = "user_" + Date.now();
     localStorage.setItem('my_chat_session_id', myChatDocId);
 }
-console.log('📢 Your Chat ID:', myChatDocId);
+logDebug('Chat ID generated: ' + myChatDocId);
 
 // ==========================================
-// 🔥 AUTO REGISTER TO SUPABASE
+// 🔥 REGISTER USER
 // ==========================================
 async function registerUser() {
-    const time = Math.floor(Date.now() / 1000);
     try {
-        await supabase.from('users').insert({
-            id: myChatDocId,
-            name: 'Student Auto',
-            phone: 'TikTok',
-            status: 'active',
-            created_at: time
-        });
-        console.log("✅ User Registered");
-    } catch (error) {
-        console.log("⚠️ User already exists or error:", error.message);
+        const { data, error } = await supabase
+            .from('users')
+            .insert({
+                id: myChatDocId,
+                name: 'Student Auto',
+                phone: 'Mobile',
+                status: 'active',
+                created_at: Math.floor(Date.now() / 1000)
+            });
+            
+        if (error) {
+            if (error.code === '23505') {
+                logDebug('User already exists', 'warn');
+            } else {
+                logDebug('Register error: ' + error.message, 'error');
+            }
+        } else {
+            logDebug('User registered successfully!', 'success');
+        }
+    } catch (e) {
+        logDebug('Register exception: ' + e.message, 'error');
     }
 }
 registerUser();
@@ -148,107 +231,90 @@ registerUser();
 // ==========================================
 async function uploadToImgBB(file) {
     try {
+        logDebug('Uploading to ImgBB...', 'info');
         const formData = new FormData();
         formData.append('image', file);
+        
         const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_API_KEY}`, { 
             method: 'POST', 
             body: formData 
         });
+        
         const data = await res.json();
         if (data.success) {
+            logDebug('Upload successful!', 'success');
             return data.data.url;
         } else {
-            console.error('ImgBB upload failed:', data);
+            logDebug('ImgBB error: ' + JSON.stringify(data), 'error');
             return null;
         }
     } catch (error) {
-        console.error('Upload error:', error);
+        logDebug('Upload error: ' + error.message, 'error');
         return null;
     }
 }
 
 // ==========================================
-// 🔥 SEND MESSAGE TO SUPABASE
+// 🔥 SEND MESSAGE
 // ==========================================
 async function sendMessage(type, content) {
-    let finalContent = content;
-    let fileUrl = '';
+    logDebug('📤 Sending ' + type + ' message...', 'info');
     
-    if (type === 'text') {
-        finalContent = content;
-    } else {
-        // For media, content is the file object
-        const url = await uploadToImgBB(content);
-        if (!url) {
-            alert('Failed to upload media. Please try again.');
-            return;
-        }
-        fileUrl = url;
-        finalContent = `Sent a ${type}`;
-    }
-
     try {
-        await supabase.from('messages').insert({
+        let messageData = {
             chat_id: myChatDocId,
             sender: 'user',
             type: type,
-            message_text: finalContent,
-            file_url: fileUrl,
             time_now: Date.now()
-        });
-        console.log('✅ Message sent');
-    } catch (error) {
-        console.error('Send message error:', error);
-    }
-}
+        };
 
-// ==========================================
-// 🔥 RECEIVE MESSAGES
-// ==========================================
-function loadMessages() {
-    const chatBox = document.getElementById('chatBox');
-    
-    // Subscribe to real-time changes
-    const channel = supabase.channel(`room:${myChatDocId}`);
-    
-    channel
-        .on('postgres_changes', { 
-            event: 'INSERT', 
-            schema: 'public', 
-            table: 'messages', 
-            filter: `chat_id=eq.${myChatDocId}` 
-        }, (payload) => {
-            renderMessage(payload.new);
-            chatBox.scrollTop = chatBox.scrollHeight;
-        })
-        .subscribe();
-    
-    // Load existing messages
-    loadExistingMessages();
-}
+        if (type === 'text') {
+            messageData.message_text = content;
+            messageData.file_url = '';
+            logDebug('Text: ' + content, 'info');
+        } else {
+            logDebug('Uploading media...', 'info');
+            const url = await uploadToImgBB(content);
+            if (!url) {
+                logDebug('Upload failed!', 'error');
+                alert('❌ Upload failed!');
+                return;
+            }
+            messageData.message_text = `Sent a ${type}`;
+            messageData.file_url = url;
+            logDebug('Media uploaded: ' + url, 'success');
+        }
 
-async function loadExistingMessages() {
-    try {
+        logDebug('Sending to Supabase...', 'info');
+        
         const { data, error } = await supabase
             .from('messages')
-            .select('*')
-            .eq('chat_id', myChatDocId)
-            .order('time_now', { ascending: true });
-            
+            .insert([messageData])
+            .select();
+
         if (error) {
-            console.error('Error loading messages:', error);
+            logDebug('❌ Supabase Error: ' + error.message, 'error');
+            logDebug('Error code: ' + error.code, 'error');
+            alert('❌ Error: ' + error.message);
             return;
         }
+
+        logDebug('✅ Message sent successfully!', 'success');
+        logDebug('Data: ' + JSON.stringify(data), 'success');
         
-        const chatBox = document.getElementById('chatBox');
-        chatBox.innerHTML = '';
-        data.forEach(msg => renderMessage(msg));
-        chatBox.scrollTop = chatBox.scrollHeight;
+        // Add to UI
+        renderMessage(messageData);
+        document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
+        
     } catch (error) {
-        console.error('Load messages error:', error);
+        logDebug('❌ Exception: ' + error.message, 'error');
+        alert('❌ Failed: ' + error.message);
     }
 }
 
+// ==========================================
+// 🔥 RENDER MESSAGE
+// ==========================================
 function renderMessage(data) {
     const chatBox = document.getElementById('chatBox');
     const msgDiv = document.createElement('div');
@@ -260,7 +326,6 @@ function renderMessage(data) {
     } else if (data.type === 'image') {
         const img = document.createElement('img');
         img.src = data.file_url;
-        img.alt = 'Image';
         img.style.maxWidth = '100%';
         img.style.maxHeight = '200px';
         img.style.borderRadius = '6px';
@@ -273,7 +338,6 @@ function renderMessage(data) {
         video.style.maxWidth = '100%';
         video.style.maxHeight = '200px';
         video.style.borderRadius = '6px';
-        video.onclick = () => openLightbox(data.file_url, 'video');
         msgDiv.appendChild(video);
     } else if (data.type === 'audio') {
         const audio = document.createElement('audio');
@@ -284,6 +348,122 @@ function renderMessage(data) {
     }
     
     chatBox.appendChild(msgDiv);
+    logDebug('Message rendered in UI', 'success');
+}
+
+// ==========================================
+// 🔥 LOAD MESSAGES
+// ==========================================
+async function loadExistingMessages() {
+    logDebug('Loading messages...', 'info');
+    
+    try {
+        const { data, error } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('chat_id', myChatDocId)
+            .order('time_now', { ascending: true });
+            
+        if (error) {
+            logDebug('Load error: ' + error.message, 'error');
+            return;
+        }
+        
+        logDebug('Loaded ' + data.length + ' messages', 'success');
+        
+        const chatBox = document.getElementById('chatBox');
+        chatBox.innerHTML = '';
+        data.forEach(msg => renderMessage(msg));
+        chatBox.scrollTop = chatBox.scrollHeight;
+        
+    } catch (error) {
+        logDebug('Load exception: ' + error.message, 'error');
+    }
+}
+
+// ==========================================
+// 🔥 REALTIME SUBSCRIPTION
+// ==========================================
+function setupRealtime() {
+    logDebug('Setting up realtime...', 'info');
+    
+    const channel = supabase.channel(`room:${myChatDocId}`);
+    
+    channel
+        .on('postgres_changes', { 
+            event: 'INSERT', 
+            schema: 'public', 
+            table: 'messages', 
+            filter: `chat_id=eq.${myChatDocId}` 
+        }, (payload) => {
+            logDebug('📨 New message received!', 'success');
+            renderMessage(payload.new);
+            document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
+        })
+        .subscribe((status) => {
+            logDebug('Realtime status: ' + status, status === 'SUBSCRIBED' ? 'success' : 'warn');
+        });
+}
+
+// ==========================================
+// 🔥 TEST SUPABASE
+// ==========================================
+async function testSupabase() {
+    logDebug('🔍 Testing Supabase...', 'info');
+    
+    // Test 1: Connection
+    try {
+        const { data, error } = await supabase
+            .from('messages')
+            .select('count')
+            .limit(1);
+            
+        if (error) {
+            logDebug('❌ Connection failed: ' + error.message, 'error');
+            alert('❌ Connection failed!\nError: ' + error.message);
+            return;
+        }
+        logDebug('✅ Connection successful!', 'success');
+    } catch (e) {
+        logDebug('❌ Exception: ' + e.message, 'error');
+        alert('❌ Error: ' + e.message);
+        return;
+    }
+    
+    // Test 2: Insert test message
+    try {
+        const testId = 'test_' + Date.now();
+        logDebug('📤 Inserting test message...', 'info');
+        
+        const { data, error } = await supabase
+            .from('messages')
+            .insert([{
+                chat_id: testId,
+                sender: 'user',
+                type: 'text',
+                message_text: '✅ Test message from debug ' + new Date().toLocaleTimeString(),
+                file_url: '',
+                time_now: Date.now()
+            }])
+            .select();
+            
+        if (error) {
+            logDebug('❌ Insert failed: ' + error.message, 'error');
+            alert('❌ Insert failed!\nError: ' + error.message);
+            return;
+        }
+        
+        logDebug('✅ Test message sent!', 'success');
+        logDebug('Data: ' + JSON.stringify(data), 'success');
+        alert('✅ Test successful!\nCheck database for test message.');
+        
+        // Reload messages
+        await loadExistingMessages();
+        
+    } catch (e) {
+        logDebug('❌ Exception: ' + e.message, 'error');
+        alert('❌ Error: ' + e.message);
+    }
 }
 
 // ==========================================
@@ -318,18 +498,23 @@ document.getElementById('mediaLightbox').addEventListener('click', (e) => {
 // ==========================================
 document.getElementById('sendBtn').onclick = () => {
     const input = document.getElementById('msgInput');
-    if (input.value.trim()) { 
-        sendMessage('text', input.value); 
+    const text = input.value.trim();
+    if (text) { 
+        logDebug('Send button clicked', 'info');
+        sendMessage('text', text); 
         input.value = ''; 
+    } else {
+        logDebug('Empty message', 'warn');
     }
 };
 
 document.getElementById('msgInput').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
         const input = document.getElementById('msgInput');
-        const t = input.value.trim();
-        if (t) { 
-            sendMessage('text', t); 
+        const text = input.value.trim();
+        if (text) { 
+            logDebug('Enter key pressed', 'info');
+            sendMessage('text', text); 
             input.value = ''; 
         }
     }
@@ -339,8 +524,10 @@ document.getElementById('mediaInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     
-    // Check file size (1.5MB limit)
+    logDebug('File selected: ' + file.name + ' (' + file.size + ' bytes)', 'info');
+    
     if (file.size > 1572864) { 
+        logDebug('File too large: ' + file.size, 'error');
         alert('File size limit is 1.5MB.'); 
         e.target.value = '';
         return;
@@ -354,6 +541,7 @@ document.getElementById('mediaInput').addEventListener('change', async (e) => {
     e.target.value = '';
 });
 
+// Voice recording
 let mediaRecorder, audioChunks = [], isRecording = false;
 document.getElementById('voiceBtn').addEventListener('click', async () => {
     if (!isRecording) {
@@ -364,24 +552,28 @@ document.getElementById('voiceBtn').addEventListener('click', async () => {
             mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
             mediaRecorder.onstop = async () => {
                 const blob = new Blob(audioChunks, { type: 'audio/mp3' });
+                logDebug('Recording saved: ' + blob.size + ' bytes', 'info');
                 await sendMessage('audio', blob);
             };
             mediaRecorder.start();
             isRecording = true;
             document.getElementById('voiceBtn').textContent = '🛑';
             document.getElementById('voiceBtn').classList.add('recording');
+            logDebug('Recording started', 'info');
         } catch (error) {
-            alert('Microphone access denied. Please allow microphone permissions.');
+            logDebug('Microphone error: ' + error.message, 'error');
+            alert('Microphone access denied.');
         }
     } else {
         mediaRecorder.stop();
         isRecording = false;
         document.getElementById('voiceBtn').textContent = '🎙️';
         document.getElementById('voiceBtn').classList.remove('recording');
+        logDebug('Recording stopped', 'info');
     }
 });
 
-// Notification button (demo)
+// Notification button
 document.getElementById('notifBtn').addEventListener('click', function() {
     const status = document.getElementById('notifStatus');
     if (status.textContent === '🔔 Notifications Off') {
@@ -391,10 +583,12 @@ document.getElementById('notifBtn').addEventListener('click', function() {
         if ('Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission();
         }
+        logDebug('Notifications enabled', 'info');
     } else {
         status.textContent = '🔔 Notifications Off';
         this.textContent = '🔔 Enable';
         this.style.background = '#F4B400';
+        logDebug('Notifications disabled', 'info');
     }
 });
 
@@ -409,13 +603,14 @@ document.addEventListener('DOMContentLoaded', () => {
         e.preventDefault();
         deferredPrompt = e;
         installBtn.style.display = 'inline-block';
+        logDebug('Install prompt available', 'info');
     });
 
     installBtn?.addEventListener('click', async () => {
         if (deferredPrompt) {
             deferredPrompt.prompt();
             const result = await deferredPrompt.userChoice;
-            console.log('User choice:', result);
+            logDebug('Install choice: ' + result.outcome, 'info');
             deferredPrompt = null;
         } else if (helpOverlay) {
             helpOverlay.style.display = 'flex';
@@ -428,16 +623,27 @@ document.addEventListener('DOMContentLoaded', () => {
 
     window.addEventListener('appinstalled', () => {
         if (installBtn) installBtn.style.display = 'none';
+        logDebug('App installed!', 'success');
     });
 });
 
 // ==========================================
 // 🔥 START
 // ==========================================
-loadMessages();
+logDebug('🚀 Teach Hub Starting...', 'info');
+loadExistingMessages();
+setupRealtime();
 
-console.log('🚀 Teach Hub is running with Supabase!');
-console.log('📱 Your Chat ID:', myChatDocId);
+logDebug('✅ App ready!', 'success');
+logDebug('📱 Chat ID: ' + myChatDocId, 'info');
+logDebug('💡 Tap "Show Log" to see debug info', 'info');
+
+// Show debug panel automatically
+setTimeout(() => {
+    if (!debugVisible) {
+        toggleDebug();
+    }
+}, 1000);
 </script>
 </body>
 </html>
