@@ -6,17 +6,35 @@
     <title>Teach Hub - Admin Panel</title>
     <link rel="icon" href="logo-192.png" type="image/png">
     <style>
+        /* CSS - 100% Waisa hi hai aapka */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         body { background: #eef2f5; display: flex; justify-content: center; align-items: center; height: 100vh; }
         .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #f5f7f8; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
         #inbox-view { display: flex; flex-direction: column; height: 100%; background: #ffffff; }
         .inbox-header { background: #1B4F72; color: white; padding: 16px; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
+        .inbox-header img { width: 26px; height: 26px; }
         .user-list { flex: 1; overflow-y: auto; padding: 8px 0; background: #ffffff; }
         .user-item { display: flex; flex-direction: column; padding: 12px 16px; border-bottom: 1px solid #f0f0f0; transition: background 0.2s; position: relative; cursor: pointer; }
         .user-item:hover { background: #f5f6f6; }
         .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #1B4F72; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; flex-shrink: 0; }
         .user-details { flex: 1; min-width: 0; }
-        .user-name { font-size: 15px; font-weight: 600; color: #16232e; }
+        .user-phone { font-size: 15px; font-weight: 600; color: #16232e; }
+        .user-subtitle { font-size: 12px; color: #6b7a85; margin-top: 2px; }
+
+        .status-container { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e1e1e1; flex-wrap: wrap; }
+        .status-tag { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 12px; color: white; background-color: #8696a0; }
+        .status-tag.pending { background-color: #e53935; }
+        .status-tag.plan1 { background-color: #1e88e5; }
+        .status-tag.plan2 { background-color: #8e24aa; }
+        .status-tag.completed { background-color: #43a047; }
+        .status-tag.custom { background-color: #f4511e; }
+
+        .status-selector { font-size: 12px; padding: 3px 6px; border-radius: 4px; border: 1px solid #ccc; outline: none; background: #fff; cursor: pointer; }
+        .remove-status-btn { font-size: 11px; padding: 3px 6px; background: #d32f2f; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .unread-badge { background-color: #1B84D8; color: white; font-size: 11px; font-weight: bold; min-width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+        .delete-user-btn { font-size: 12px; padding: 4px 10px; background: #c62828; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: auto; transition: background 0.2s; }
+        .delete-user-btn:hover { background: #b71c1c; }
+        
         #chat-view { display: none; flex-direction: column; height: 100%; }
         .chat-header { background: #123a56; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .back-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; }
@@ -35,35 +53,56 @@
         .input-container input[type="text"] { flex: 1; border: none; outline: none; padding: 10px 4px; font-size: 15px; background: transparent; }
         .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #54656f; display: flex; align-items: center; justify-content: center; }
         .send-btn { background: #1B4F72; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+        .media-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 2000; align-items: center; justify-content: center; padding: 16px; }
+        .media-lightbox img, .media-lightbox video { max-width: 100%; max-height: 100%; border-radius: 6px; }
+        .media-lightbox-close { position: absolute; top: 16px; right: 16px; color: #fff; font-size: 30px; background: none; border: none; cursor: pointer; line-height: 1; }
+        .video-thumb { position: relative; cursor: pointer; }
+        .video-thumb .play-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 48px; height: 48px; background: rgba(0,0,0,0.55); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; pointer-events: none; }
     </style>
+
+    <!-- ✅ SUPABASE SCRIPT (Firebase hata diya) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
 <div class="chat-container">
     <div id="inbox-view">
-        <div class="inbox-header"><span>📋 Teach Hub - Staff</span></div>
+        <div class="inbox-header">
+            <img src="logo-192.png" alt="Teach Hub">
+            <span>Teach Hub - Staff Inbox</span>
+        </div>
         <div class="user-list" id="userList"></div>
     </div>
+
     <div id="chat-view">
         <div class="chat-header">
             <button class="back-btn" onclick="goBackToInbox()">←</button>
-            <div class="header-info"><div class="name" id="chatTitle">Support Panel</div></div>
+            <img class="profile-img" src="logo-192.png" alt="Profile">
+            <div class="header-info">
+                <div class="name" id="chatTitle">Support Panel</div>
+                <div class="status">active chat session</div>
+            </div>
         </div>
         <div class="chat-messages" id="chatBox"></div>
         <div class="chat-input-area">
             <div class="input-container">
                 <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
-                <button class="icon-btn" onclick="document.getElementById('mediaInput').click()">📎</button>
-                <input type="text" id="msgInput" placeholder="Reply...">
+                <button class="icon-btn" onclick="document.getElementById('mediaInput').click()" style="margin-right: 8px;">📎</button>
+                <input type="text" id="msgInput" placeholder="Reply to student...">
+                <button class="icon-btn" id="voiceBtn">🎙️</button>
             </div>
             <button class="send-btn" id="sendBtn">➤</button>
         </div>
     </div>
 </div>
 
+<div class="media-lightbox" id="mediaLightbox">
+    <button class="media-lightbox-close" id="mediaLightboxCloseBtn">✕</button>
+    <div id="mediaLightboxContent"></div>
+</div>
+
 <script>
 // ==========================================
-// 🔥 APNI KEYS YAHAN PASTE KAREIN
+// 🔥 KEYS (Supabase + ImgBB)
 // ==========================================
 const SUPABASE_URL = 'https://ivfxhrfqwzbvmiebrgfd.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_GTLlHlf7xyPjITGtlC-ozg_3myRnLWM';
@@ -71,72 +110,184 @@ const IMG_BB_API_KEY = 'c10f07a29b678cda424ef81b2e5f2302';
 
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-let activeChatId = null;
+// ==========================================
+// 🔥 GLOBAL VARIABLES
+// ==========================================
+const inboxView = document.getElementById('inbox-view');
+const chatView = document.getElementById('chat-view');
+const userListDiv = document.getElementById('userList');
+const chatTitle = document.getElementById('chatTitle');
+const chatBox = document.getElementById('chatBox');
+const msgInput = document.getElementById('msgInput');
+const sendBtn = document.getElementById('sendBtn');
+const mediaInput = document.getElementById('mediaInput');
+const voiceBtn = document.getElementById('voiceBtn');
+
+let activeDocId = "";
 let activeChatListener = null;
+let mediaRecorder, audioChunks = [], isRecording = false;
 
 // ==========================================
-// 🔥 LOAD USERS (Auto Refresh 3 sec)
+// 🔥 USER NAME GENERATOR (Aapka wala)
 // ==========================================
-async function loadUsers() {
-    const { data: users, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
-    if (error) return console.error(error);
-    
-    const list = document.getElementById('userList');
-    list.innerHTML = '';
-    users.forEach(user => {
-        const div = document.createElement('div');
-        div.className = 'user-item';
-        div.onclick = () => openChat(user.id, user.name);
-        div.innerHTML = `
-            <div class="user-details">
-                <div class="user-name">${user.name}</div>
-                <div style="font-size:11px; color:#6b7a85;">ID: ${user.id.substring(0,8)}</div>
-            </div>
-        `;
-        list.appendChild(div);
-    });
+function getUserFriendlyName(docId) {
+    let savedNames = localStorage.getItem('chatUserNames');
+    savedNames = savedNames ? JSON.parse(savedNames) : {};
+    if (savedNames[docId]) return savedNames[docId];
+    const assignedNumbers = Object.values(savedNames).map(name => parseInt(name.replace("Student ", "")) || 0);
+    const nextNumber = assignedNumbers.length > 0 ? Math.max(...assignedNumbers) + 1 : 1;
+    const newName = "Student " + nextNumber;
+    savedNames[docId] = newName;
+    localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
+    return newName;
 }
-setInterval(loadUsers, 3000);
-loadUsers();
+
+// ==========================================
+// 🔥 UPDATE STATUS (Supabase)
+// ==========================================
+async function updateCustomerStatus(docId, newStatus) {
+    try {
+        await supabase.from('users').update({ status: newStatus }).eq('id', docId);
+    } catch (error) {
+        console.error("Error updating status: ", error);
+    }
+}
+
+window.handleStatusChange = function(selectElement, docId) {
+    const val = selectElement.value;
+    if (val === 'custom') {
+        const customVal = prompt("Enter Custom Status:");
+        if (customVal && customVal.trim() !== "") updateCustomerStatus(docId, customVal.trim());
+        else selectElement.value = "";
+    } else {
+        updateCustomerStatus(docId, val);
+    }
+};
+
+window.removeStatus = function(docId) {
+    if (confirm("Remove status?")) updateCustomerStatus(docId, "");
+};
+
+// ==========================================
+// 🔥 DELETE USER (Supabase)
+// ==========================================
+window.deleteUser = async function(docId, userName) {
+    if (!confirm(`Delete "${userName}"?`)) return;
+    try {
+        await supabase.from('messages').delete().eq('chat_id', docId);
+        await supabase.from('users').delete().eq('id', docId);
+        let savedNames = localStorage.getItem('chatUserNames');
+        if (savedNames) { savedNames = JSON.parse(savedNames); delete savedNames[docId]; localStorage.setItem('chatUserNames', JSON.stringify(savedNames)); }
+        if (activeDocId === docId) goBackToInbox();
+        alert(`✅ Deleted "${userName}"`);
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        alert("❌ Failed to delete.");
+    }
+};
+
+// ==========================================
+// 🔥 LOAD INBOX (Supabase)
+// ==========================================
+async function loadInbox() {
+    inboxView.style.display = 'flex';
+    chatView.style.display = 'none';
+    if (activeChatListener) { activeChatListener.unsubscribe(); activeChatListener = null; }
+
+    userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>Loading...</div>";
+
+    try {
+        const { data: users, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+        if (error) throw error;
+
+        userListDiv.innerHTML = "";
+        if (!users || users.length === 0) {
+            userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>No users found.</div>";
+            return;
+        }
+
+        users.forEach((user) => {
+            const docId = user.id;
+            const userName = getUserFriendlyName(docId);
+            const activeStatus = user.status || "";
+
+            let tagClass = "status-tag";
+            if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
+            else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
+            else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
+            else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
+            else if (activeStatus !== "") tagClass += " custom";
+
+            const itemDiv = document.createElement('div');
+            itemDiv.className = 'user-item';
+            itemDiv.innerHTML = `
+                <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
+                    <div class="user-avatar">🎓</div>
+                    <div class="user-details">
+                        <div class="user-phone">${userName}</div>
+                        <div class="user-subtitle">ID: ${docId.substring(0, 15)}...</div>
+                    </div>
+                    <div id="badge-${docId}" class="unread-badge" style="display: none;">0</div>
+                </div>
+                <div class="status-container">
+                    ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px; color:#aaa;">No tag</span>'}
+                    <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
+                        <option value="" disabled selected>Assign status...</option>
+                        <option value="Payment Pending">Payment Pending</option>
+                        <option value="Plan 1">Plan 1</option>
+                        <option value="Plan 2">Plan 2</option>
+                        <option value="Completed">Completed</option>
+                        <option value="custom">✍️ Custom Status...</option>
+                    </select>
+                    ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
+                    <button class="delete-user-btn" onclick="event.stopPropagation(); window.deleteUser('${docId}', '${userName}')">🗑 Delete</button>
+                </div>
+            `;
+            userListDiv.appendChild(itemDiv);
+        });
+    } catch (error) {
+        console.error("Error loading inbox: ", error);
+        userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:red;'>Failed to load users.</div>";
+    }
+}
+
+// Auto-refresh har 3 second mein
+setInterval(loadInbox, 3000);
 
 // ==========================================
 // 🔥 GO BACK
 // ==========================================
-function goBackToInbox() {
-    document.getElementById('inbox-view').style.display = 'flex';
-    document.getElementById('chat-view').style.display = 'none';
-    if(activeChatListener) activeChatListener.unsubscribe();
-}
+window.goBackToInbox = function() { loadInbox(); };
 
 // ==========================================
-// 🔥 OPEN CHAT
+// 🔥 OPEN CHAT (Supabase Realtime)
 // ==========================================
-function openChat(chatId, userName) {
-    activeChatId = chatId;
-    document.getElementById('inbox-view').style.display = 'none';
-    document.getElementById('chat-view').style.display = 'flex';
-    document.getElementById('chatTitle').innerText = userName;
-    document.getElementById('chatBox').innerHTML = '';
+window.openChat = function(docId, userName) {
+    activeDocId = docId;
+    inboxView.style.display = 'none';
+    chatView.style.display = 'flex';
+    chatTitle.innerText = userName;
+    chatBox.innerHTML = "";
 
-    if(activeChatListener) activeChatListener.unsubscribe();
+    if (activeChatListener) { activeChatListener.unsubscribe(); activeChatListener = null; }
 
-    activeChatListener = supabase.channel(`room:${chatId}`)
+    activeChatListener = supabase.channel(`room:${docId}`)
         .on('postgres_changes', { 
             event: 'INSERT', 
             schema: 'public', 
             table: 'messages', 
-            filter: `chat_id=eq.${chatId}` 
+            filter: `chat_id=eq.${docId}` 
         }, (payload) => {
             renderMessage(payload.new);
-            document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
+            chatBox.scrollTop = chatBox.scrollHeight;
         })
         .subscribe();
-}
+};
 
 function renderMessage(data) {
-    const chatBox = document.getElementById('chatBox');
     const msgDiv = document.createElement('div');
-    msgDiv.classList.add('msg', data.sender === 'admin' ? 'sent-by-me' : 'received-by-me');
+    const isMe = data.sender === 'admin';
+    msgDiv.classList.add('msg', isMe ? 'sent-by-me' : 'received-by-me');
 
     if (data.type === 'text') {
         msgDiv.innerHTML = `<span>${data.message_text}</span>`;
@@ -146,11 +297,16 @@ function renderMessage(data) {
         if (data.type !== 'image') media.controls = true;
         msgDiv.appendChild(media);
     }
+
+    const metaDiv = document.createElement('div');
+    metaDiv.classList.add('msg-meta');
+    metaDiv.innerHTML = `<span>${new Date(data.time_now).toLocaleTimeString()}</span>`;
+    msgDiv.appendChild(metaDiv);
     chatBox.appendChild(msgDiv);
 }
 
 // ==========================================
-// 🔥 UPLOAD & SEND (Admin)
+// 🔥 UPLOAD TO IMGBB
 // ==========================================
 async function uploadToImgBB(file) {
     const formData = new FormData(); formData.append('image', file);
@@ -159,13 +315,13 @@ async function uploadToImgBB(file) {
     return data.success ? data.data.url : null;
 }
 
-async function sendMessage(type, content) {
-    if(!activeChatId) return;
+async function sendMessageToSupabase(type, content) {
+    if (!activeDocId) return;
     const finalContent = type === 'text' ? content : await uploadToImgBB(content);
     if (!finalContent && type !== 'text') return;
 
     await supabase.from('messages').insert({
-        chat_id: activeChatId,
+        chat_id: activeDocId,
         sender: 'admin',
         type: type,
         message_text: type === 'text' ? content : `Sent a ${type}`,
@@ -174,17 +330,47 @@ async function sendMessage(type, content) {
     });
 }
 
-document.getElementById('sendBtn').onclick = () => {
-    const input = document.getElementById('msgInput');
-    if(input.value.trim()) { sendMessage('text', input.value); input.value = ''; }
-};
+// ==========================================
+// 🔥 EVENTS
+// ==========================================
+sendBtn.addEventListener('click', () => { 
+    const t = msgInput.value.trim(); 
+    if(t){ msgInput.value=""; sendMessageToSupabase('text', t); } 
+});
+msgInput.addEventListener('keypress', (e) => { 
+    if (e.key === 'Enter') { 
+        const t = msgInput.value.trim(); 
+        if(t){ msgInput.value=""; sendMessageToSupabase('text', t); } 
+    } 
+});
 
-document.getElementById('mediaInput').onchange = async (e) => {
-    const file = e.target.files[0];
+mediaInput.addEventListener('change', async (e) => {
+    const file = e.target.files[0]; 
     if (!file) return;
-    const type = file.type.startsWith('image') ? 'image' : file.type.startsWith('video') ? 'video' : 'audio';
-    sendMessage(type, file);
-};
+    if (file.size > 1548576) { alert("File size limit is 1.5MB."); return; }
+    let fileType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'text';
+    sendMessageToSupabase(fileType, file);
+});
+
+voiceBtn.addEventListener('click', async () => {
+    if (!isRecording) {
+        if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+            mediaRecorder = new MediaRecorder(stream); audioChunks = [];
+            mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
+            mediaRecorder.onstop = async () => {
+                const blob = new Blob(audioChunks, { type: 'audio/mp3' });
+                sendMessageToSupabase('audio', blob);
+            };
+            mediaRecorder.start(); isRecording = true; voiceBtn.classList.add('recording'); voiceBtn.innerText = "🛑";
+        }
+    } else { mediaRecorder.stop(); isRecording = false; voiceBtn.classList.remove('recording'); voiceBtn.innerText = "🎙️"; }
+});
+
+// ==========================================
+// 🔥 START
+// ==========================================
+loadInbox();
 </script>
 </body>
 </html>
