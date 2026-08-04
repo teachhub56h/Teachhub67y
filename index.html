@@ -13,7 +13,7 @@
     <meta name="theme-color" content="#1B4F72">
 
     <style>
-        /* CSS - 100% Waisa hi hai aapka */
+        /* CSS - Bilkul waisa hi */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         body { background: #eef2f5; display: flex; justify-content: center; align-items: center; height: 100vh; }
         .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #f5f7f8; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
@@ -100,12 +100,12 @@
     <div id="mediaLightboxContent"></div>
 </div>
 
-<!-- ✅ SUPABASE + IMGBB SCRIPT (Firebase hata diya) -->
+<!-- ✅ SUPABASE + IMGBB SCRIPT -->
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
 // ==========================================
-// 🔥 APNI 3 KEYS YAHAN PASTE KAREIN (Sahi kar di hain)
+// 🔥 KEYS (YAHAN PASTE KAREIN)
 // ==========================================
 const SUPABASE_URL = 'https://ivfxhrfqwzbvmiebrgfd.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_GTLlHlf7xyPjITGtlC-ozg_3myRnLWM';
@@ -124,7 +124,7 @@ if (!myChatDocId) {
 console.log('📢 Your Chat ID:', myChatDocId);
 
 // ==========================================
-// 🔥 AUTO REGISTER TO SUPABASE (users table)
+// 🔥 AUTO REGISTER TO SUPABASE
 // ==========================================
 async function registerUser() {
     const time = Math.floor(Date.now() / 1000);
@@ -139,7 +139,7 @@ async function registerUser() {
 registerUser();
 
 // ==========================================
-// 🔥 UPLOAD TO IMGBB (Unlimited Media)
+// 🔥 UPLOAD TO IMGBB
 // ==========================================
 async function uploadToImgBB(file) {
     const formData = new FormData();
@@ -150,9 +150,9 @@ async function uploadToImgBB(file) {
 }
 
 // ==========================================
-// 🔥 SEND MESSAGE TO SUPABASE (messages table)
+// 🔥 SEND MESSAGE TO SUPABASE
 // ==========================================
-async function sendMessageToSupabase(type, content) {
+async function sendMessage(type, content) {
     const finalContent = type === 'text' ? content : await uploadToImgBB(content);
     if (!finalContent && type !== 'text') return;
 
@@ -167,7 +167,7 @@ async function sendMessageToSupabase(type, content) {
 }
 
 // ==========================================
-// 🔥 RECEIVE MESSAGES (Real-time)
+// 🔥 RECEIVE MESSAGES
 // ==========================================
 function loadMessages() {
     const chatBox = document.getElementById('chatBox');
@@ -206,14 +206,20 @@ function renderMessage(data) {
 // ==========================================
 document.getElementById('sendBtn').onclick = () => {
     const input = document.getElementById('msgInput');
-    if (input.value.trim()) { sendMessageToSupabase('text', input.value); input.value = ''; }
+    if (input.value.trim()) { 
+        sendMessage('text', input.value); 
+        input.value = ''; 
+    }
 };
 
 document.getElementById('msgInput').addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
         const input = document.getElementById('msgInput');
         const t = input.value.trim();
-        if (t) { sendMessageToSupabase('text', t); input.value = ''; }
+        if (t) { 
+            sendMessage('text', t); 
+            input.value = ''; 
+        }
     }
 });
 
@@ -226,7 +232,7 @@ document.getElementById('mediaInput').addEventListener('change', async (e) => {
         const type = file.type.startsWith('image/') ? 'image' : 
                      file.type.startsWith('video/') ? 'video' : 
                      file.type.startsWith('audio/') ? 'audio' : 'text';
-        sendMessageToSupabase(type, url);
+        sendMessage(type, url);
     }
 });
 
@@ -240,7 +246,7 @@ document.getElementById('voiceBtn').addEventListener('click', async () => {
         mediaRecorder.onstop = async () => {
             const blob = new Blob(audioChunks, { type: 'audio/mp3' });
             const url = await uploadToImgBB(blob);
-            if(url) sendMessageToSupabase('audio', url);
+            if(url) sendMessage('audio', url);
         };
         mediaRecorder.start();
         isRecording = true;
@@ -254,7 +260,7 @@ document.getElementById('voiceBtn').addEventListener('click', async () => {
     }
 });
 
-// Install button (Bilkul waisa hi)
+// Install button
 document.addEventListener('DOMContentLoaded', () => {
     let deferredPrompt;
     const installBtn = document.getElementById('installBtn');
