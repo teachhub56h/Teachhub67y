@@ -6,7 +6,6 @@
     <title>Teach Hub - Admin Panel</title>
     <link rel="icon" href="logo-192.png" type="image/png">
     <style>
-        /* CSS - 100% Waisa hi hai aapka */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         body { background: #eef2f5; display: flex; justify-content: center; align-items: center; height: 100vh; }
         .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #f5f7f8; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
@@ -56,11 +55,8 @@
         .media-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 2000; align-items: center; justify-content: center; padding: 16px; }
         .media-lightbox img, .media-lightbox video { max-width: 100%; max-height: 100%; border-radius: 6px; }
         .media-lightbox-close { position: absolute; top: 16px; right: 16px; color: #fff; font-size: 30px; background: none; border: none; cursor: pointer; line-height: 1; }
-        .video-thumb { position: relative; cursor: pointer; }
-        .video-thumb .play-overlay { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 48px; height: 48px; background: rgba(0,0,0,0.55); border-radius: 50%; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 20px; pointer-events: none; }
     </style>
 
-    <!-- ✅ SUPABASE SCRIPT (Firebase hata diya) -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 </head>
 <body>
@@ -102,16 +98,16 @@
 
 <script>
 // ==========================================
-// 🔥 KEYS (Supabase + ImgBB)
+// ✅ UPDATED KEYS
 // ==========================================
-const SUPABASE_URL = 'https://ivfxhrfqwzbvmiebrgfd.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_GTLlHlf7xyPjITGtlC-ozg_3myRnLWM';
+const SUPABASE_URL = 'https://jrsenizemhiveatujem1.supabase.co';
+const SUPABASE_ANON_KEY = 'sb_publishable_r1VjqhoQWimt7m46QvBJxg_fCeatpc8';
 const IMG_BB_API_KEY = 'c10f07a29b678cda424ef81b2e5f2302';
 
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 // ==========================================
-// 🔥 GLOBAL VARIABLES
+// GLOBAL VARIABLES
 // ==========================================
 const inboxView = document.getElementById('inbox-view');
 const chatView = document.getElementById('chat-view');
@@ -128,7 +124,7 @@ let activeChatListener = null;
 let mediaRecorder, audioChunks = [], isRecording = false;
 
 // ==========================================
-// 🔥 USER NAME GENERATOR (Aapka wala)
+// USER NAME GENERATOR
 // ==========================================
 function getUserFriendlyName(docId) {
     let savedNames = localStorage.getItem('chatUserNames');
@@ -143,7 +139,7 @@ function getUserFriendlyName(docId) {
 }
 
 // ==========================================
-// 🔥 UPDATE STATUS (Supabase)
+// UPDATE STATUS
 // ==========================================
 async function updateCustomerStatus(docId, newStatus) {
     try {
@@ -169,7 +165,7 @@ window.removeStatus = function(docId) {
 };
 
 // ==========================================
-// 🔥 DELETE USER (Supabase)
+// DELETE USER
 // ==========================================
 window.deleteUser = async function(docId, userName) {
     if (!confirm(`Delete "${userName}"?`)) return;
@@ -187,7 +183,7 @@ window.deleteUser = async function(docId, userName) {
 };
 
 // ==========================================
-// 🔥 LOAD INBOX (Supabase)
+// LOAD INBOX
 // ==========================================
 async function loadInbox() {
     inboxView.style.display = 'flex';
@@ -221,7 +217,7 @@ async function loadInbox() {
             const itemDiv = document.createElement('div');
             itemDiv.className = 'user-item';
             itemDiv.innerHTML = `
-                <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
+                <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')" style="display:flex;align-items:center;gap:12px;">
                     <div class="user-avatar">🎓</div>
                     <div class="user-details">
                         <div class="user-phone">${userName}</div>
@@ -255,12 +251,12 @@ async function loadInbox() {
 setInterval(loadInbox, 3000);
 
 // ==========================================
-// 🔥 GO BACK
+// GO BACK
 // ==========================================
 window.goBackToInbox = function() { loadInbox(); };
 
 // ==========================================
-// 🔥 OPEN CHAT (Supabase Realtime)
+// OPEN CHAT
 // ==========================================
 window.openChat = function(docId, userName) {
     activeDocId = docId;
@@ -270,6 +266,9 @@ window.openChat = function(docId, userName) {
     chatBox.innerHTML = "";
 
     if (activeChatListener) { activeChatListener.unsubscribe(); activeChatListener = null; }
+
+    // Load existing messages
+    loadChatMessages(docId);
 
     activeChatListener = supabase.channel(`room:${docId}`)
         .on('postgres_changes', { 
@@ -284,6 +283,33 @@ window.openChat = function(docId, userName) {
         .subscribe();
 };
 
+// ==========================================
+// LOAD CHAT MESSAGES
+// ==========================================
+async function loadChatMessages(docId) {
+    try {
+        const { data, error } = await supabase
+            .from('messages')
+            .select('*')
+            .eq('chat_id', docId)
+            .order('time_now', { ascending: true });
+            
+        if (error) {
+            console.error('Error loading messages:', error);
+            return;
+        }
+        
+        chatBox.innerHTML = '';
+        data.forEach(msg => renderMessage(msg));
+        chatBox.scrollTop = chatBox.scrollHeight;
+    } catch (error) {
+        console.error('Load messages error:', error);
+    }
+}
+
+// ==========================================
+// RENDER MESSAGE
+// ==========================================
 function renderMessage(data) {
     const msgDiv = document.createElement('div');
     const isMe = data.sender === 'admin';
@@ -291,11 +317,28 @@ function renderMessage(data) {
 
     if (data.type === 'text') {
         msgDiv.innerHTML = `<span>${data.message_text}</span>`;
-    } else {
-        const media = document.createElement(data.type === 'image' ? 'img' : data.type);
-        media.src = data.file_url;
-        if (data.type !== 'image') media.controls = true;
-        msgDiv.appendChild(media);
+    } else if (data.type === 'image') {
+        const img = document.createElement('img');
+        img.src = data.file_url;
+        img.style.maxWidth = '100%';
+        img.style.maxHeight = '200px';
+        img.style.borderRadius = '6px';
+        img.onclick = () => openLightbox(data.file_url, 'image');
+        msgDiv.appendChild(img);
+    } else if (data.type === 'video') {
+        const video = document.createElement('video');
+        video.src = data.file_url;
+        video.controls = true;
+        video.style.maxWidth = '100%';
+        video.style.maxHeight = '200px';
+        video.style.borderRadius = '6px';
+        msgDiv.appendChild(video);
+    } else if (data.type === 'audio') {
+        const audio = document.createElement('audio');
+        audio.src = data.file_url;
+        audio.controls = true;
+        audio.style.maxWidth = '100%';
+        msgDiv.appendChild(audio);
     }
 
     const metaDiv = document.createElement('div');
@@ -306,7 +349,7 @@ function renderMessage(data) {
 }
 
 // ==========================================
-// 🔥 UPLOAD TO IMGBB
+// UPLOAD TO IMGBB
 // ==========================================
 async function uploadToImgBB(file) {
     const formData = new FormData(); formData.append('image', file);
@@ -315,6 +358,9 @@ async function uploadToImgBB(file) {
     return data.success ? data.data.url : null;
 }
 
+// ==========================================
+// SEND MESSAGE
+// ==========================================
 async function sendMessageToSupabase(type, content) {
     if (!activeDocId) return;
     const finalContent = type === 'text' ? content : await uploadToImgBB(content);
@@ -331,12 +377,13 @@ async function sendMessageToSupabase(type, content) {
 }
 
 // ==========================================
-// 🔥 EVENTS
+// EVENTS
 // ==========================================
 sendBtn.addEventListener('click', () => { 
     const t = msgInput.value.trim(); 
     if(t){ msgInput.value=""; sendMessageToSupabase('text', t); } 
 });
+
 msgInput.addEventListener('keypress', (e) => { 
     if (e.key === 'Enter') { 
         const t = msgInput.value.trim(); 
@@ -368,7 +415,34 @@ voiceBtn.addEventListener('click', async () => {
 });
 
 // ==========================================
-// 🔥 START
+// MEDIA LIGHTBOX
+// ==========================================
+function openLightbox(url, type) {
+    const lightbox = document.getElementById('mediaLightbox');
+    const content = document.getElementById('mediaLightboxContent');
+    lightbox.style.display = 'flex';
+    
+    if (type === 'image') {
+        content.innerHTML = `<img src="${url}" alt="Media">`;
+    } else if (type === 'video') {
+        content.innerHTML = `<video src="${url}" controls autoplay style="max-width:100%;max-height:100%;"></video>`;
+    }
+}
+
+document.getElementById('mediaLightboxCloseBtn').addEventListener('click', () => {
+    document.getElementById('mediaLightbox').style.display = 'none';
+    document.getElementById('mediaLightboxContent').innerHTML = '';
+});
+
+document.getElementById('mediaLightbox').addEventListener('click', (e) => {
+    if (e.target === e.currentTarget) {
+        document.getElementById('mediaLightbox').style.display = 'none';
+        document.getElementById('mediaLightboxContent').innerHTML = '';
+    }
+});
+
+// ==========================================
+// START
 // ==========================================
 loadInbox();
 </script>
