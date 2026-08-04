@@ -4,319 +4,212 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Teach Hub - Student</title>
-    <link rel="manifest" href="manifest.json">
-    <link rel="icon" href="logo-192.png" type="image/png">
-    <link rel="apple-touch-icon" href="logo-192.png">
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="Teach Hub">
-    <meta name="theme-color" content="#1B4F72">
-
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    
     <style>
-        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: Arial, sans-serif; }
         body { background: #eef2f5; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #f5f7f8; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
-
-        .chat-header { background: #1B4F72; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); flex-wrap: wrap; }
-        .profile-img { width: 40px; height: 40px; border-radius: 12px; background: #ffffff; object-fit: contain; padding: 3px; }
-        .header-info { flex: 1; min-width: 80px; }
-        .header-info .name { font-size: 16px; font-weight: 600; }
-        .header-info .status { font-size: 11px; color: #a9c6dd; }
-        .header-btn { background: #F4B400; color: #1B4F72; border: none; padding: 5px 10px; border-radius: 14px; font-size: 11px; font-weight: 700; cursor: pointer; display: inline-block; white-space: nowrap; }
-        .header-btn.green { background: #43a047; color: white; cursor: default; }
-        .header-btn:disabled { opacity: 0.7; cursor: default; }
-        
-        .install-help-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 999; align-items: center; justify-content: center; padding: 20px; }
-        .install-help-box { background: #fff; border-radius: 12px; padding: 20px; max-width: 340px; text-align: center; color: #16232e; font-size: 14px; line-height: 1.5; }
-        .install-help-box b { color: #1B4F72; }
-        .install-help-box button { margin-top: 14px; background: #1B4F72; color: #fff; border: none; padding: 8px 18px; border-radius: 20px; font-size: 13px; cursor: pointer; }
-        .media-lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.92); z-index: 2000; align-items: center; justify-content: center; padding: 16px; }
-        .media-lightbox img, .media-lightbox video { max-width: 100%; max-height: 100%; border-radius: 6px; }
-        .media-lightbox-close { position: absolute; top: 16px; right: 16px; color: #fff; font-size: 30px; background: none; border: none; cursor: pointer; line-height: 1; }
-        .msg img, .msg .video-thumb video { cursor: pointer; }
-
-        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background-color: #eef2f5; }
-
-        .msg { max-width: 80%; padding: 6px 7px 6px 9px; border-radius: 8px; font-size: 14.5px; line-height: 1.4; word-wrap: break-word; position: relative; box-shadow: 0 1px 1px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 5px; }
-        .msg.sent-by-me { background: #d6e8f5; align-self: flex-end; border-top-right-radius: 0; color: #16232e; }
-        .msg.received-by-me { background: #ffffff; align-self: flex-start; border-top-left-radius: 0; color: #16232e; }
-        .msg img, .msg video { max-width: 100%; max-height: 200px; border-radius: 6px; display: block; object-fit: contain; }
-        .msg audio { max-width: 100%; display: block; outline: none; }
-
-        .msg-meta { align-self: flex-end; display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #6b7a85; user-select: none; }
-
-        .tick { display: inline-block; font-weight: bold; font-size: 12px; margin-left: 1px; }
-        .tick.sent { color: #8696a0; }
-        .tick.delivered { color: #8696a0; }
-        .tick.read { color: #1B84D8; }
-
+        .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #f5f7f8; display: flex; flex-direction: column; overflow: hidden; }
+        .chat-header { background: #1B4F72; color: white; padding: 15px; text-align: center; font-size: 18px; font-weight: bold; }
+        .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background: #eef2f5; }
+        .msg { max-width: 80%; padding: 8px 12px; border-radius: 10px; font-size: 14px; word-wrap: break-word; }
+        .msg.user { background: #d6e8f5; align-self: flex-end; border-top-right-radius: 0; }
+        .msg.admin { background: #ffffff; align-self: flex-start; border-top-left-radius: 0; border: 1px solid #ddd; }
+        .msg img { max-width: 100%; max-height: 250px; border-radius: 8px; margin-top: 5px; cursor: pointer; }
+        .msg video { max-width: 100%; max-height: 250px; border-radius: 8px; margin-top: 5px; }
+        .msg audio { max-width: 100%; margin-top: 5px; }
+        .msg .time { font-size: 10px; color: #888; margin-top: 4px; display: block; text-align: right; }
         .chat-input-area { padding: 10px; background: #e4e9ec; display: flex; align-items: center; gap: 8px; }
         .input-container { flex: 1; background: #fff; border-radius: 24px; display: flex; align-items: center; padding: 2px 12px; }
-        .input-container input[type="text"] { flex: 1; border: none; outline: none; padding: 10px 4px; font-size: 15px; background: transparent; }
-        .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #54656f; display: flex; align-items: center; justify-content: center; }
-        .icon-btn.recording { color: #ea0038; animation: blink 1s infinite; }
-        .send-btn { background: #1B4F72; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
-        @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
+        .input-container input { flex: 1; border: none; outline: none; padding: 10px 4px; font-size: 15px; background: transparent; }
+        .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #54656f; }
+        .send-btn { background: #1B4F72; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 18px; }
+        .file-input { display: none; }
+        .preview { max-width: 100px; max-height: 100px; border-radius: 8px; margin: 5px; }
+        .lightbox { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.9); z-index: 999; align-items: center; justify-content: center; padding: 20px; }
+        .lightbox img { max-width: 100%; max-height: 100%; border-radius: 8px; }
+        .lightbox-close { position: absolute; top: 20px; right: 30px; color: white; font-size: 40px; cursor: pointer; }
     </style>
 </head>
 <body>
-<div class="chat-container">
-    <div class="chat-header">
-        <img class="profile-img" src="logo-192.png" alt="Teach Hub">
-        <div class="header-info">
-            <div class="name">Teach Hub Support</div>
-            <div class="status" id="notifStatus">🔔 Notifications Off</div>
-        </div>
-        <button id="notifBtn" class="header-btn">🔔 Enable</button>
-        <button class="header-btn" id="installBtn" style="background:#43a047; color:white;">📲 Install</button>
-    </div>
 
+<div class="chat-container">
+    <div class="chat-header">💬 Teach Hub Support</div>
     <div class="chat-messages" id="chatBox"></div>
 
     <div class="chat-input-area">
         <div class="input-container">
-            <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
-            <button class="icon-btn" onclick="document.getElementById('mediaInput').click()" style="margin-right: 8px;">📎</button>
+            <button class="icon-btn" onclick="document.getElementById('fileInput').click()">📎</button>
+            <input type="file" id="fileInput" class="file-input" accept="image/*,video/*,audio/*" onchange="handleFile(event)">
             <input type="text" id="msgInput" placeholder="Type a message...">
-            <button class="icon-btn" id="voiceBtn">🎙️</button>
+            <button class="icon-btn" id="voiceBtn" onclick="toggleRecording()">🎙️</button>
         </div>
-        <button class="send-btn" id="sendBtn">➤</button>
+        <button class="send-btn" onclick="sendMessage()">➤</button>
     </div>
 </div>
 
-<div class="install-help-overlay" id="installHelpOverlay">
-    <div class="install-help-box">
-        <p>To install this app on your home screen:</p>
-        <p style="margin-top:10px;">Tap the <b>⋮ menu</b> (top-right of your browser) and choose <b>"Install app"</b> or <b>"Add to Home screen"</b>.</p>
-        <button id="installHelpClose">Got it</button>
-    </div>
+<!-- Lightbox -->
+<div class="lightbox" id="lightbox" onclick="closeLightbox()">
+    <span class="lightbox-close">✕</span>
+    <img id="lightboxImg" src="">
 </div>
-
-<div class="media-lightbox" id="mediaLightbox">
-    <button class="media-lightbox-close" id="mediaLightboxCloseBtn">✕</button>
-    <div id="mediaLightboxContent"></div>
-</div>
-
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 
 <script>
 // ==========================================
-// 🔥 YOUR SUPABASE KEYS
+// 🔥 FIREBASE CONFIG (Apna config paste karo)
 // ==========================================
-const SUPABASE_URL = 'https://jrsenizemhiveatujem1.supabase.co';
-const SUPABASE_ANON_KEY = 'sb_publishable_r1VjqhoQWimt7m46QvBJxg_fCeatpc8';
-const IMG_BB_API_KEY = 'c10f07a29b678cda424ef81b2e5f2302';
+const firebaseConfig = {
+    apiKey: "YOUR_API_KEY",
+    authDomain: "YOUR_PROJECT.firebaseapp.com",
+    databaseURL: "https://YOUR_PROJECT-default-rtdb.firebaseio.com",
+    projectId: "YOUR_PROJECT",
+    storageBucket: "YOUR_PROJECT.appspot.com",
+    messagingSenderId: "YOUR_SENDER_ID",
+    appId: "YOUR_APP_ID"
+};
 
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// ==========================================
-// 🔥 STUDENT ID
-// ==========================================
-let myChatDocId = localStorage.getItem('my_chat_session_id');
-if (!myChatDocId) {
-    myChatDocId = "user_" + Date.now();
-    localStorage.setItem('my_chat_session_id', myChatDocId);
-}
-alert('🆔 Your Chat ID: ' + myChatDocId);
+firebase.initializeApp(firebaseConfig);
+const database = firebase.database();
 
 // ==========================================
-// 🔥 REGISTER USER
+// 🔥 IMGBB API KEY
 // ==========================================
-async function registerUser() {
-    try {
-        const time = Math.floor(Date.now() / 1000);
-        const { data, error } = await supabase
-            .from('users')
-            .insert({
-                id: myChatDocId,
-                name: 'Student Auto',
-                phone: 'Mobile',
-                status: 'active',
-                created_at: time
-            });
-        if (error) {
-            console.log('User exists:', error.message);
-        } else {
-            console.log('✅ User Registered');
-        }
-    } catch (e) {
-        console.log('User already exists');
-    }
-}
-registerUser();
+const IMG_BB_KEY = 'c10f07a29b678cda424ef81b2e5f2302';
 
 // ==========================================
-// 🔥 LOAD MESSAGES
+// 🔥 CHAT ID
 // ==========================================
-async function loadMessages() {
-    try {
-        const { data, error } = await supabase
-            .from('messages')
-            .select('*')
-            .eq('chat_id', myChatDocId)
-            .order('time_now', { ascending: true });
-            
-        if (error) {
-            console.error('Load error:', error);
-            return;
-        }
-        
-        const chatBox = document.getElementById('chatBox');
-        chatBox.innerHTML = '';
-        
-        data.forEach(msg => {
-            const msgDiv = document.createElement('div');
-            const isMe = msg.sender === 'user';
-            msgDiv.className = 'msg ' + (isMe ? 'sent-by-me' : 'received-by-me');
-            
-            if (msg.type === 'text') {
-                msgDiv.innerHTML = `<span>${msg.message_text}</span>`;
-            } else if (msg.type === 'image') {
-                msgDiv.innerHTML = `<img src="${msg.file_url}" style="max-width:100%;max-height:200px;border-radius:6px;">`;
-            } else if (msg.type === 'video') {
-                msgDiv.innerHTML = `<video src="${msg.file_url}" controls style="max-width:100%;max-height:200px;border-radius:6px;"></video>`;
-            } else if (msg.type === 'audio') {
-                msgDiv.innerHTML = `<audio src="${msg.file_url}" controls style="max-width:100%;"></audio>`;
-            }
-            
-            chatBox.appendChild(msgDiv);
-        });
-        
-        chatBox.scrollTop = chatBox.scrollHeight;
-        console.log('✅ Loaded ' + data.length + ' messages');
-        
-    } catch (e) {
-        console.error('Load error:', e);
-    }
-}
+const CHAT_ID = localStorage.getItem('chat_id') || 'user_' + Date.now();
+localStorage.setItem('chat_id', CHAT_ID);
 
 // ==========================================
-// 🔥 SEND MESSAGE - WITH ALERTS
+// 🔥 SEND MESSAGE
 // ==========================================
-async function sendMessage(type, content) {
-    alert('1️⃣ Send function started!');
-    
-    try {
-        const messageData = {
-            chat_id: myChatDocId,
-            sender: 'user',
-            type: type,
-            message_text: type === 'text' ? content : `Sent a ${type}`,
-            file_url: '',
-            time_now: Date.now()
-        };
-
-        alert('2️⃣ Data ready: ' + type);
-
-        const { data, error } = await supabase
-            .from('messages')
-            .insert([messageData]);
-
-        if (error) {
-            alert('❌ Error: ' + error.message);
-            console.error('Supabase error:', error);
-            return;
-        }
-
-        alert('✅ Message sent successfully!');
-        console.log('Message sent:', data);
-        
-        // Reload messages
-        loadMessages();
-        
-    } catch (error) {
-        alert('❌ Exception: ' + error.message);
-        console.error('Error:', error);
-    }
-}
-
-// ==========================================
-// 🔥 SEND BUTTON TRIGGER - 100% WORKING
-// ==========================================
-document.getElementById('sendBtn').onclick = function() {
-    alert('🔵 Send button clicked!');
-    
+function sendMessage() {
     const input = document.getElementById('msgInput');
     const text = input.value.trim();
     
-    if (text === '') {
-        alert('⚠️ Message is empty!');
-        return;
-    }
-    
-    alert('📝 Sending: ' + text);
-    sendMessage('text', text);
+    if (!text) return;
     input.value = '';
-};
+    
+    const msg = {
+        sender: 'user',
+        type: 'text',
+        text: text,
+        time: Date.now()
+    };
+    
+    database.ref('chats/' + CHAT_ID + '/messages').push(msg);
+}
 
 // ==========================================
-// 🔥 ENTER KEY TRIGGER - 100% WORKING
+// 🔥 HANDLE FILE UPLOAD
 // ==========================================
-document.getElementById('msgInput').addEventListener('keypress', function(e) {
-    if (e.key === 'Enter') {
-        alert('⏎ Enter key pressed!');
-        document.getElementById('sendBtn').click();
-    }
-});
-
-// ==========================================
-// 🔥 MEDIA UPLOAD TRIGGER
-// ==========================================
-document.getElementById('mediaInput').addEventListener('change', async function(e) {
-    const file = e.target.files[0];
+async function handleFile(event) {
+    const file = event.target.files[0];
     if (!file) return;
     
-    alert('📎 File selected: ' + file.name);
-    
-    if (file.size > 1548576) { 
-        alert('File size limit is 1.5MB.');
-        e.target.value = '';
+    if (file.size > 1572864) {
+        alert('File size must be under 1.5MB');
+        event.target.value = '';
         return;
     }
     
+    const type = file.type.startsWith('image/') ? 'image' : 
+                 file.type.startsWith('video/') ? 'video' : 'audio';
+    
+    const formData = new FormData();
+    formData.append('image', file);
+    
     try {
-        const formData = new FormData();
-        formData.append('image', file);
-        const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_API_KEY}`, { 
-            method: 'POST', 
-            body: formData 
+        const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_KEY}`, {
+            method: 'POST',
+            body: formData
         });
         const data = await res.json();
         
         if (data.success) {
-            const url = data.data.url;
-            const type = file.type.startsWith('image/') ? 'image' : 
-                         file.type.startsWith('video/') ? 'video' : 'audio';
-            
-            alert('✅ File uploaded!');
-            
-            await supabase.from('messages').insert([{
-                chat_id: myChatDocId,
+            const msg = {
                 sender: 'user',
                 type: type,
-                message_text: `Sent a ${type}`,
-                file_url: url,
-                time_now: Date.now()
-            }]);
-            
-            alert('✅ Media message sent!');
-            loadMessages();
+                file_url: data.data.url,
+                text: `Sent a ${type}`,
+                time: Date.now()
+            };
+            database.ref('chats/' + CHAT_ID + '/messages').push(msg);
         } else {
-            alert('❌ Upload failed!');
+            alert('Upload failed!');
         }
-    } catch (error) {
-        alert('❌ Upload error: ' + error.message);
+    } catch (e) {
+        alert('Error: ' + e.message);
     }
     
-    e.target.value = '';
-});
+    event.target.value = '';
+}
 
 // ==========================================
-// 🔥 VOICE RECORDING TRIGGER
+// 🔥 RECEIVE MESSAGES (Real-time)
+// ==========================================
+function loadMessages() {
+    const chatBox = document.getElementById('chatBox');
+    
+    database.ref('chats/' + CHAT_ID + '/messages')
+        .orderByChild('time')
+        .on('child_added', function(snapshot) {
+            const msg = snapshot.val();
+            renderMessage(msg);
+            chatBox.scrollTop = chatBox.scrollHeight;
+        });
+}
+
+// ==========================================
+// 🔥 RENDER MESSAGE
+// ==========================================
+function renderMessage(msg) {
+    const chatBox = document.getElementById('chatBox');
+    const div = document.createElement('div');
+    div.className = 'msg ' + (msg.sender === 'user' ? 'user' : 'admin');
+    
+    let content = '';
+    
+    if (msg.type === 'text') {
+        content = msg.text;
+    } else if (msg.type === 'image') {
+        content = `<img src="${msg.file_url}" onclick="openLightbox('${msg.file_url}')">`;
+    } else if (msg.type === 'video') {
+        content = `<video src="${msg.file_url}" controls></video>`;
+    } else if (msg.type === 'audio') {
+        content = `<audio src="${msg.file_url}" controls></audio>`;
+    }
+    
+    const time = new Date(msg.time).toLocaleTimeString();
+    div.innerHTML = content + `<span class="time">${time}</span>`;
+    chatBox.appendChild(div);
+}
+
+// ==========================================
+// 🔥 LIGHTBOX
+// ==========================================
+function openLightbox(url) {
+    document.getElementById('lightbox').style.display = 'flex';
+    document.getElementById('lightboxImg').src = url;
+}
+
+function closeLightbox() {
+    document.getElementById('lightbox').style.display = 'none';
+}
+
+// ==========================================
+// 🔥 VOICE RECORDING
 // ==========================================
 let mediaRecorder, audioChunks = [], isRecording = false;
 
-document.getElementById('voiceBtn').addEventListener('click', async function() {
+async function toggleRecording() {
+    const btn = document.getElementById('voiceBtn');
+    
     if (!isRecording) {
         try {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -326,133 +219,54 @@ document.getElementById('voiceBtn').addEventListener('click', async function() {
             mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
             mediaRecorder.onstop = async () => {
                 const blob = new Blob(audioChunks, { type: 'audio/mp3' });
-                alert('✅ Recording saved!');
-                
                 const formData = new FormData();
                 formData.append('image', blob);
-                const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_API_KEY}`, { 
-                    method: 'POST', 
-                    body: formData 
+                
+                const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_KEY}`, {
+                    method: 'POST',
+                    body: formData
                 });
                 const data = await res.json();
                 
                 if (data.success) {
-                    await supabase.from('messages').insert([{
-                        chat_id: myChatDocId,
+                    const msg = {
                         sender: 'user',
                         type: 'audio',
-                        message_text: 'Sent a voice note',
                         file_url: data.data.url,
-                        time_now: Date.now()
-                    }]);
-                    alert('✅ Voice note sent!');
-                    loadMessages();
+                        text: 'Sent a voice note',
+                        time: Date.now()
+                    };
+                    database.ref('chats/' + CHAT_ID + '/messages').push(msg);
                 }
             };
             
             mediaRecorder.start();
             isRecording = true;
-            this.textContent = '🛑';
-            this.classList.add('recording');
-            alert('🎙️ Recording started...');
-            
-        } catch (error) {
-            alert('❌ Microphone access denied: ' + error.message);
+            btn.textContent = '🛑';
+            btn.style.color = 'red';
+        } catch (e) {
+            alert('Microphone access denied');
         }
     } else {
         mediaRecorder.stop();
         isRecording = false;
-        this.textContent = '🎙️';
-        this.classList.remove('recording');
-        alert('⏹️ Recording stopped');
-    }
-});
-
-// ==========================================
-// 🔥 NOTIFICATION TRIGGER
-// ==========================================
-document.getElementById('notifBtn').addEventListener('click', function() {
-    const status = document.getElementById('notifStatus');
-    if (status.textContent === '🔔 Notifications Off') {
-        status.textContent = '🔔 Notifications On';
-        this.textContent = '🔔 Disable';
-        this.style.background = '#43a047';
-        if ('Notification' in window && Notification.permission === 'default') {
-            Notification.requestPermission();
-        }
-    } else {
-        status.textContent = '🔔 Notifications Off';
-        this.textContent = '🔔 Enable';
-        this.style.background = '#F4B400';
-    }
-});
-
-// ==========================================
-// 🔥 INSTALL TRIGGER
-// ==========================================
-document.addEventListener('DOMContentLoaded', function() {
-    let deferredPrompt;
-    const installBtn = document.getElementById('installBtn');
-    const helpOverlay = document.getElementById('installHelpOverlay');
-    const helpCloseBtn = document.getElementById('installHelpClose');
-
-    window.addEventListener('beforeinstallprompt', function(e) {
-        e.preventDefault();
-        deferredPrompt = e;
-        installBtn.style.display = 'inline-block';
-    });
-
-    installBtn.addEventListener('click', async function() {
-        if (deferredPrompt) {
-            deferredPrompt.prompt();
-            await deferredPrompt.userChoice;
-            deferredPrompt = null;
-        } else if (helpOverlay) {
-            helpOverlay.style.display = 'flex';
-        }
-    });
-
-    helpCloseBtn.addEventListener('click', function() {
-        helpOverlay.style.display = 'none';
-    });
-
-    window.addEventListener('appinstalled', function() {
-        installBtn.style.display = 'none';
-    });
-});
-
-// ==========================================
-// 🔥 MEDIA LIGHTBOX TRIGGER
-// ==========================================
-function openLightbox(url, type) {
-    const lightbox = document.getElementById('mediaLightbox');
-    const content = document.getElementById('mediaLightboxContent');
-    lightbox.style.display = 'flex';
-    
-    if (type === 'image') {
-        content.innerHTML = `<img src="${url}" alt="Media" style="max-width:100%;max-height:100%;border-radius:6px;">`;
-    } else if (type === 'video') {
-        content.innerHTML = `<video src="${url}" controls autoplay style="max-width:100%;max-height:100%;border-radius:6px;"></video>`;
+        btn.textContent = '🎙️';
+        btn.style.color = '#54656f';
     }
 }
 
-document.getElementById('mediaLightboxCloseBtn').addEventListener('click', function() {
-    document.getElementById('mediaLightbox').style.display = 'none';
-    document.getElementById('mediaLightboxContent').innerHTML = '';
-});
-
-document.getElementById('mediaLightbox').addEventListener('click', function(e) {
-    if (e.target === e.currentTarget) {
-        this.style.display = 'none';
-        document.getElementById('mediaLightboxContent').innerHTML = '';
-    }
+// ==========================================
+// 🔥 ENTER KEY
+// ==========================================
+document.getElementById('msgInput').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') sendMessage();
 });
 
 // ==========================================
-// 🔥 START - LOAD MESSAGES
+// 🔥 START
 // ==========================================
 loadMessages();
-console.log('✅ App started with Chat ID:', myChatDocId);
+alert('✅ Chat Started! ID: ' + CHAT_ID);
 </script>
 </body>
 </html>
