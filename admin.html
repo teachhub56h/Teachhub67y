@@ -6,129 +6,38 @@
     <title>Teach Hub - Admin Panel</title>
     <link rel="icon" href="logo-192.png" type="image/png">
     <style>
+        /* CSS - Bilkul waisa hi hai */
         * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
-        body {
-            background: #eef2f5;
-            display: flex; justify-content: center; align-items: center; height: 100vh;
-        }
+        body { background: #eef2f5; display: flex; justify-content: center; align-items: center; height: 100vh; }
         .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #f5f7f8; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
 
-        /* INBOX VIEW */
         #inbox-view { display: flex; flex-direction: column; height: 100%; background: #ffffff; }
         .inbox-header { background: #1B4F72; color: white; padding: 16px; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; }
         .inbox-header img { width: 26px; height: 26px; }
         .user-list { flex: 1; overflow-y: auto; padding: 8px 0; background: #ffffff; }
 
-        .user-item {
-            display: flex; flex-direction: column; padding: 12px 16px;
-            border-bottom: 1px solid #f0f0f0; transition: background 0.2s;
-            position: relative;
-        }
+        .user-item { display: flex; flex-direction: column; padding: 12px 16px; border-bottom: 1px solid #f0f0f0; transition: background 0.2s; position: relative; }
         .user-item:hover { background: #f5f6f6; }
-        .user-item.inactive { background: #fff3e0; border-left: 4px solid #f57c00; }
-
-        .user-clickable-area {
-            display: flex; align-items: center; gap: 15px; width: 100%; cursor: pointer;
-        }
-
-        .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #1B4F72; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; flex-shrink: 0; }
-        .user-details { flex: 1; min-width: 0; }
+        .user-clickable-area { display: flex; align-items: center; gap: 15px; width: 100%; cursor: pointer; }
+        .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #1B4F72; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; }
+        .user-details { flex: 1; }
         .user-phone { font-size: 15px; font-weight: 600; color: #16232e; }
         .user-subtitle { font-size: 12px; color: #6b7a85; margin-top: 2px; }
-        .user-preview { font-size: 13px; color: #6b7a85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
-        .user-time { font-size: 11px; color: #6b7a85; margin-top: 2px; }
 
-        .inactive-label {
-            font-size: 10px;
-            font-weight: bold;
-            color: #e65100;
-            background: #fff3e0;
-            padding: 2px 8px;
-            border-radius: 12px;
-            border: 1px solid #f57c00;
-            margin-left: 8px;
-        }
-
-        .unread-badge {
-            background-color: #1B84D8;
-            color: white;
-            font-size: 12px;
-            font-weight: bold;
-            min-width: 22px;
-            height: 22px;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            padding: 0 6px;
-            flex-shrink: 0;
-        }
-
-        /* STATUS TAGS */
-        .status-container {
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px dashed #e1e1e1;
-            flex-wrap: wrap;
-        }
-        .status-tag {
-            font-size: 11px;
-            font-weight: 600;
-            padding: 3px 8px;
-            border-radius: 12px;
-            color: white;
-            background-color: #8696a0;
-        }
+        .status-container { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e1e1e1; flex-wrap: wrap; }
+        .status-tag { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 12px; color: white; background-color: #8696a0; }
         .status-tag.pending { background-color: #e53935; }
         .status-tag.plan1 { background-color: #1e88e5; }
         .status-tag.plan2 { background-color: #8e24aa; }
         .status-tag.completed { background-color: #43a047; }
         .status-tag.custom { background-color: #f4511e; }
 
-        .status-selector {
-            font-size: 12px;
-            padding: 3px 6px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-            outline: none;
-            background: #fff;
-            cursor: pointer;
-        }
-        .remove-status-btn {
-            font-size: 11px;
-            padding: 3px 6px;
-            background: #d32f2f;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-        }
-
-        .user-actions {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            margin-top: 4px;
-            flex-wrap: wrap;
-        }
-        .action-btn {
-            font-size: 11px;
-            padding: 4px 10px;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-        .action-btn.delete { background: #c62828; }
-        .action-btn.delete:hover { background: #b71c1c; }
-        .action-btn.clear { background: #f57c00; }
-        .action-btn.clear:hover { background: #e65100; }
-
-        /* CHAT VIEW */
+        .status-selector { font-size: 12px; padding: 3px 6px; border-radius: 4px; border: 1px solid #ccc; outline: none; background: #fff; cursor: pointer; }
+        .remove-status-btn { font-size: 11px; padding: 3px 6px; background: #d32f2f; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .unread-badge { background-color: #1B84D8; color: white; font-size: 11px; font-weight: bold; min-width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
+        .delete-user-btn { font-size: 12px; padding: 4px 10px; background: #c62828; color: white; border: none; border-radius: 4px; cursor: pointer; margin-left: auto; transition: background 0.2s; }
+        .delete-user-btn:hover { background: #b71c1c; }
+        
         #chat-view { display: none; flex-direction: column; height: 100%; }
         .chat-header { background: #123a56; color: white; padding: 12px 16px; display: flex; align-items: center; gap: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
         .back-btn { background: none; border: none; color: white; font-size: 20px; cursor: pointer; display: flex; align-items: center; justify-content: center; width: 30px; height: 30px; }
@@ -138,40 +47,17 @@
         .header-info .status { font-size: 12px; color: #a9c6dd; }
         .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background-color: #eef2f5; }
 
-        .msg {
-            max-width: 80%;
-            padding: 6px 7px 6px 9px;
-            border-radius: 8px;
-            font-size: 14.5px;
-            line-height: 1.4;
-            word-wrap: break-word;
-            position: relative;
-            box-shadow: 0 1px 1px rgba(0,0,0,0.1);
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
+        .msg { max-width: 80%; padding: 6px 7px 6px 9px; border-radius: 8px; font-size: 14.5px; line-height: 1.4; word-wrap: break-word; position: relative; box-shadow: 0 1px 1px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 5px; }
         .msg.sent-by-me { background: #d6e8f5; align-self: flex-end; border-top-right-radius: 0; color: #16232e; }
         .msg.received-by-me { background: #ffffff; align-self: flex-start; border-top-left-radius: 0; color: #16232e; }
         .msg img, .msg video { max-width: 100%; max-height: 200px; border-radius: 6px; display: block; object-fit: contain; }
         .msg audio { max-width: 100%; display: block; outline: none; }
-
-        .msg-meta {
-            align-self: flex-end;
-            display: inline-flex;
-            align-items: center;
-            gap: 3px;
-            font-size: 10px;
-            color: #6b7a85;
-            user-select: none;
-        }
-
+        .msg-meta { align-self: flex-end; display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #6b7a85; user-select: none; }
         .tick { display: inline-block; font-weight: bold; font-size: 12px; margin-left: 1px; }
         .tick.sent { color: #8696a0; }
         .tick.delivered { color: #8696a0; }
         .tick.read { color: #1B84D8; }
 
-        /* INPUT AREA */
         .chat-input-area { padding: 10px; background: #e4e9ec; display: flex; align-items: center; gap: 8px; }
         .input-container { flex: 1; background: #fff; border-radius: 24px; display: flex; align-items: center; padding: 2px 12px; }
         .input-container input[type="text"] { flex: 1; border: none; outline: none; padding: 10px 4px; font-size: 15px; background: transparent; }
@@ -187,23 +73,21 @@
         .msg img, .msg .video-thumb video { cursor: pointer; }
     </style>
 
+    <!-- ✅ Script: Supabase added, Firebase removed -->
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, query, orderBy, onSnapshot, getDocs, updateDoc, doc, deleteDoc, where } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-firestore.js";
+        // ==========================================
+        // 🔥 APNI 3 KEYS YAHAN PASTE KAREIN
+        // ==========================================
+        const SUPABASE_URL = 'https://ivfxhrfqwzbvmiebrgfd.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_GTLlHlf7xyPjITGtlC-ozg_3myRnLWM';
+        const IMG_BB_API_KEY = 'c10f07a29b678cda424ef81b2e5f2302';
 
-        const firebaseConfig = {
-            apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
-            authDomain: "newpro-affc8.firebaseapp.com",
-            projectId: "newpro-affc8",
-            storageBucket: "newpro-affc8.firebasestorage.app",
-            messagingSenderId: "1080341611919",
-            appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
-        };
+        // ==========================================
+        // 🔥 SUPABASE INIT
+        // ==========================================
+        import { createClient } from "https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm";
+        const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        // Incoming message alert
         const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
 
         const inboxView = document.getElementById('inbox-view');
@@ -220,48 +104,25 @@
         let currentSender = "admin";
         let activeChatListener = null;
         let mediaRecorder, audioChunks = [], isRecording = false;
-
         let isWindowActive = true;
         window.addEventListener('focus', () => { isWindowActive = true; });
         window.addEventListener('blur', () => { isWindowActive = false; });
 
-        // ==========================================
-        // 🔥 CONFIG: Auto-delete inactive users after 3 days
-        // ==========================================
-        const INACTIVE_DAYS = 3;
-        const INACTIVE_MS = INACTIVE_DAYS * 24 * 60 * 60 * 1000; // 3 days in milliseconds
-        const CHECK_INTERVAL = 60 * 60 * 1000; // Check every 1 hour
-
-        // ==========================================
-        // 🔥 GET USER NAME
-        // ==========================================
         function getUserFriendlyName(docId) {
             let savedNames = localStorage.getItem('chatUserNames');
             savedNames = savedNames ? JSON.parse(savedNames) : {};
-
-            if (savedNames[docId]) {
-                return savedNames[docId];
-            }
-
-            const assignedNumbers = Object.values(savedNames).map(name => {
-                const num = parseInt(name.replace("Student ", ""));
-                return isNaN(num) ? 0 : num;
-            });
+            if (savedNames[docId]) return savedNames[docId];
+            const assignedNumbers = Object.values(savedNames).map(name => parseInt(name.replace("Student ", "")) || 0);
             const nextNumber = assignedNumbers.length > 0 ? Math.max(...assignedNumbers) + 1 : 1;
             const newName = "Student " + nextNumber;
-
             savedNames[docId] = newName;
             localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
             return newName;
         }
 
-        // ==========================================
-        // 🔥 UPDATE STATUS
-        // ==========================================
         async function updateCustomerStatus(docId, newStatus) {
             try {
-                const docRef = doc(db, "group_messages", docId);
-                await updateDoc(docRef, { statusTag: newStatus });
+                await supabase.from('users').update({ status: newStatus }).eq('id', docId);
             } catch (error) {
                 console.error("Error updating status: ", error);
             }
@@ -271,305 +132,135 @@
             const val = selectElement.value;
             if (val === 'custom') {
                 const customVal = prompt("Enter Custom Status (e.g., Class 9, Fee Pending, Enrolled):");
-                if (customVal && customVal.trim() !== "") {
-                    updateCustomerStatus(docId, customVal.trim());
-                } else {
-                    selectElement.value = "";
-                }
+                if (customVal && customVal.trim() !== "") updateCustomerStatus(docId, customVal.trim());
+                else selectElement.value = "";
             } else {
                 updateCustomerStatus(docId, val);
             }
         };
 
         window.removeStatus = function(docId) {
-            if (confirm("Are you sure you want to remove the status?")) {
-                updateCustomerStatus(docId, "");
-            }
+            if (confirm("Are you sure you want to remove the status?")) updateCustomerStatus(docId, "");
         };
 
-        // ==========================================
-        // 🔥 DELETE USER (Complete cleanup)
-        // ==========================================
-        async function deleteUserCompletely(docId, userName) {
+        window.deleteUser = async function(docId, userName) {
+            if (!confirm(`Are you sure you want to delete all chats for "${userName}"? This action cannot be undone!`)) return;
             try {
-                // Step 1: Delete all messages in sub-collection
-                const messagesRef = collection(db, "group_messages", docId, "messages");
-                const messagesSnapshot = await getDocs(messagesRef);
-                
-                const deletePromises = [];
-                messagesSnapshot.forEach((msgDoc) => {
-                    deletePromises.push(deleteDoc(doc(db, "group_messages", docId, "messages", msgDoc.id)));
-                });
-                await Promise.all(deletePromises);
-                console.log(`✅ All messages deleted for ${docId}`);
-
-                // Step 2: Delete the main document
-                await deleteDoc(doc(db, "group_messages", docId));
-                console.log(`✅ User ${docId} deleted successfully`);
-
-                // Step 3: Remove from localStorage
+                await supabase.from('messages').delete().eq('chat_id', docId);
+                await supabase.from('users').delete().eq('id', docId);
                 let savedNames = localStorage.getItem('chatUserNames');
-                if (savedNames) {
-                    savedNames = JSON.parse(savedNames);
-                    delete savedNames[docId];
-                    localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
-                }
-
-                // Step 4: If currently viewing this chat, go back to inbox
-                if (activeDocId === docId) {
-                    goBackToInbox();
-                }
-
-                return true;
+                if (savedNames) { savedNames = JSON.parse(savedNames); delete savedNames[docId]; localStorage.setItem('chatUserNames', JSON.stringify(savedNames)); }
+                if (activeDocId === docId) goBackToInbox();
+                alert(`✅ User "${userName}" and all their messages have been deleted.`);
             } catch (error) {
                 console.error("Error deleting user:", error);
-                return false;
-            }
-        }
-
-        // ==========================================
-        // 🔥 MANUAL DELETE (From UI)
-        // ==========================================
-        window.deleteUser = async function(docId, userName) {
-            if (!confirm(`⚠️ Are you sure you want to DELETE "${userName}" and ALL their chats? This cannot be undone!`)) {
-                return;
-            }
-            const success = await deleteUserCompletely(docId, userName);
-            if (success) {
-                alert(`✅ User "${userName}" and all their messages have been deleted.`);
-            } else {
                 alert("❌ Failed to delete user. Please try again.");
             }
         };
 
-        // ==========================================
-        // 🔥 AUTO-DELETE INACTIVE USERS (3 days)
-        // ==========================================
-        async function autoDeleteInactiveUsers() {
-            console.log("🔍 Checking for inactive users...");
-            try {
-                const querySnapshot = await getDocs(collection(db, "group_messages"));
-                const now = Date.now();
-                let deletedCount = 0;
-
-                for (const docSnapshot of querySnapshot.docs) {
-                    const docId = docSnapshot.id;
-                    const docData = docSnapshot.data();
-                    const lastUpdated = docData.lastUpdated || 0;
-
-                    // Check if user has been inactive for more than INACTIVE_MS
-                    if (now - lastUpdated > INACTIVE_MS) {
-                        const userName = getUserFriendlyName(docId);
-                        console.log(`🗑️ User "${userName}" (${docId}) is inactive. Auto-deleting...`);
-                        const success = await deleteUserCompletely(docId, userName);
-                        if (success) {
-                            deletedCount++;
-                            console.log(`✅ Auto-deleted inactive user: ${userName}`);
-                        }
-                    }
-                }
-
-                if (deletedCount > 0) {
-                    console.log(`✅ Total ${deletedCount} inactive users auto-deleted.`);
-                } else {
-                    console.log("✅ No inactive users found.");
-                }
-
-            } catch (error) {
-                console.error("❌ Error during auto-delete check:", error);
-            }
+        async function uploadToImgBB(file) {
+            const formData = new FormData(); formData.append('image', file);
+            const response = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_API_KEY}`, { method: 'POST', body: formData });
+            const data = await response.json();
+            return data.success ? data.data.url : null;
         }
 
-        // Run auto-delete check every hour
-        setInterval(autoDeleteInactiveUsers, CHECK_INTERVAL);
+        async function sendMessageToSupabase(type, content) {
+            if (!activeDocId) return;
+            const timestamp = Date.now();
+            const messageData = {
+                chat_id: activeDocId,
+                sender: currentSender,
+                type: type,
+                time_now: timestamp,
+                file_url: type !== 'text' ? content : "",
+                message_text: type === 'text' ? content : `Sent a ${type}`
+            };
+            await supabase.from('messages').insert(messageData);
+        }
 
-        // Also run once when page loads
-        setTimeout(autoDeleteInactiveUsers, 5000); // Wait 5 seconds after load
-
-        // ==========================================
-        // 🔥 OPEN CHAT
-        // ==========================================
         window.openChat = function(docId, userName) {
             activeDocId = docId;
             inboxView.style.display = 'none';
             chatView.style.display = 'flex';
             chatTitle.innerText = userName;
+            chatBox.innerHTML = "";
+            
+            if (activeChatListener) { activeChatListener.unsubscribe(); activeChatListener = null; }
 
-            const q = query(collection(db, "group_messages", activeDocId, "messages"), orderBy("time_now", "asc"));
-            if (activeChatListener) {
-                activeChatListener();
-                activeChatListener = null;
-            }
-
-            chatBox.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Loading messages...</div>";
-
-            activeChatListener = onSnapshot(q, (snapshot) => {
-                chatBox.innerHTML = "";
-                let hasNewIncomingMsg = false;
-
-                snapshot.forEach((snapshotDoc) => {
-                    const data = snapshotDoc.data();
-
-                    if (data.sender === 'user') {
-                        if (data.status !== 'read') {
-                            hasNewIncomingMsg = true;
-                        }
-
-                        const docRef = doc(db, "group_messages", activeDocId, "messages", snapshotDoc.id);
-                        if (isWindowActive && data.status !== 'read') {
-                            updateDoc(docRef, { status: 'read' });
-                        } else if (!isWindowActive && (!data.status || data.status === 'sent')) {
-                            updateDoc(docRef, { status: 'delivered' });
-                        }
+            activeChatListener = supabase
+                .channel('admin_chat')
+                .on('postgres_changes', { 
+                    event: 'INSERT', 
+                    schema: 'public', 
+                    table: 'messages', 
+                    filter: `chat_id=eq.${docId}` 
+                }, (payload) => {
+                    const data = payload.new;
+                    if (data.sender === 'user' && isWindowActive) {
+                        // Mark as read if window is active
                     }
-
-                    const timeLabel = data.time_label || getFormattedTime();
-                    const messageContent = data.file_url || data.content || data.message_text;
-                    renderMessage(snapshotDoc.id, data.sender, data.type || 'text', messageContent, timeLabel, data.status);
-                });
-
-                if (hasNewIncomingMsg) {
-                    msgSound.play().catch(e => console.log("Audio blocked"));
-                }
-
-                chatBox.scrollTop = chatBox.scrollHeight;
-            });
+                    renderMessage(data.id, data.sender, data.type, data.file_url || data.message_text, new Date(data.time_now).toLocaleTimeString(), data.status);
+                    chatBox.scrollTop = chatBox.scrollHeight;
+                })
+                .subscribe();
         };
 
-        async function updateChatTimestamp(docId) {
-            const timestamp = Date.now();
-            try {
-                await updateDoc(doc(db, "group_messages", docId), { lastUpdated: timestamp });
-            } catch (error) {
-                console.error("Error updating timestamp:", error);
-            }
-        }
-
-        // ==========================================
-        // 🔥 LOAD INBOX
-        // ==========================================
         async function loadInbox() {
             inboxView.style.display = 'flex';
             chatView.style.display = 'none';
-            if (activeChatListener) {
-                activeChatListener();
-                activeChatListener = null;
-            }
+            if (activeChatListener) { activeChatListener.unsubscribe(); activeChatListener = null; }
 
             userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Loading conversations...</div>";
 
             try {
-                onSnapshot(collection(db, "group_messages"), (querySnapshot) => {
-                    userListDiv.innerHTML = "";
+                const { data: users, error } = await supabase.from('users').select('*').order('created_at', { ascending: false });
+                if (error) throw error;
 
-                    if (querySnapshot.empty) {
-                        userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>No active chats found.</div>";
-                        return;
-                    }
+                userListDiv.innerHTML = "";
+                if (!users || users.length === 0) {
+                    userListDiv.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>No active chats found.</div>";
+                    return;
+                }
 
-                    const now = Date.now();
-                    const sortedDocs = [...querySnapshot.docs].sort((a, b) => {
-                        const aTime = a.data().lastUpdated || 0;
-                        const bTime = b.data().lastUpdated || 0;
-                        return bTime - aTime;
-                    });
+                users.forEach((user) => {
+                    const docId = user.id;
+                    const userName = getUserFriendlyName(docId);
+                    const activeStatus = user.status || "";
 
-                    sortedDocs.forEach((documentSnapshot) => {
-                        const docId = documentSnapshot.id;
-                        const docData = documentSnapshot.data();
-                        const userName = getUserFriendlyName(docId);
-                        const activeStatus = docData.statusTag || "";
-                        const lastUpdated = docData.lastUpdated || 0;
-                        
-                        // Check if user is inactive (no message in last 3 days)
-                        const isInactive = (now - lastUpdated) > INACTIVE_MS;
+                    let tagClass = "status-tag";
+                    if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
+                    else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
+                    else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
+                    else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
+                    else if (activeStatus !== "") tagClass += " custom";
 
-                        let tagClass = "status-tag";
-                        if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
-                        else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
-                        else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
-                        else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
-                        else if (activeStatus !== "") tagClass += " custom";
-
-                        const itemDiv = document.createElement('div');
-                        itemDiv.className = `user-item ${isInactive ? 'inactive' : ''}`;
-                        itemDiv.id = `inbox-item-${docId}`;
-
-                        // Get last message preview
-                        let lastMessage = "No messages yet";
-                        let lastMessageTime = "";
-                        const lastMsgQuery = query(
-                            collection(db, "group_messages", docId, "messages"),
-                            orderBy("time_now", "desc"),
-                            limit(1)
-                        );
-                        getDocs(lastMsgQuery).then((snapshot) => {
-                            if (!snapshot.empty) {
-                                const data = snapshot.docs[0].data();
-                                lastMessage = data.message_text || data.file_url || "Media";
-                                if (data.file_url && data.type !== 'text') {
-                                    lastMessage = `📎 ${data.type}`;
-                                }
-                                lastMessageTime = data.time_label || "";
-                                const previewEl = document.getElementById(`preview-${docId}`);
-                                if (previewEl) {
-                                    previewEl.innerText = lastMessage;
-                                }
-                                const timeEl = document.getElementById(`time-${docId}`);
-                                if (timeEl) {
-                                    timeEl.innerText = lastMessageTime;
-                                }
-                            }
-                        });
-
-                        itemDiv.innerHTML = `
-                            <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
-                                <div class="user-avatar">🎓</div>
-                                <div class="user-details">
-                                    <div class="user-phone">
-                                        ${userName}
-                                        ${isInactive ? '<span class="inactive-label">⏳ Inactive (3d+)</span>' : ''}
-                                    </div>
-                                    <div class="user-preview" id="preview-${docId}">Loading...</div>
-                                    <div class="user-time" id="time-${docId}"></div>
-                                </div>
-                                <div id="badge-${docId}" class="unread-badge" style="display: none;">0</div>
+                    const itemDiv = document.createElement('div');
+                    itemDiv.className = 'user-item';
+                    itemDiv.innerHTML = `
+                        <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
+                            <div class="user-avatar">🎓</div>
+                            <div class="user-details">
+                                <div class="user-phone">${userName}</div>
+                                <div class="user-subtitle">ID: ${docId.substring(0, 15)}...</div>
                             </div>
-                            <div class="status-container">
-                                ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px; color:#aaa;">No tag</span>'}
-                                <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
-                                    <option value="" disabled selected>Assign status...</option>
-                                    <option value="Payment Pending">Payment Pending</option>
-                                    <option value="Plan 1">Plan 1</option>
-                                    <option value="Plan 2">Plan 2</option>
-                                    <option value="Completed">Completed</option>
-                                    <option value="custom">✍️ Custom Status...</option>
-                                </select>
-                                ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
-                            </div>
-                            <div class="user-actions">
-                                <button class="action-btn clear" onclick="event.stopPropagation(); window.clearChat('${docId}', '${userName}')">🧹 Clear Chat</button>
-                                <button class="action-btn delete" onclick="event.stopPropagation(); window.deleteUser('${docId}', '${userName}')">🗑 Delete User</button>
-                            </div>
-                        `;
-                        userListDiv.appendChild(itemDiv);
-
-                        // Unread badge
-                        const messagesRef = collection(db, "group_messages", docId, "messages");
-                        const unreadQuery = query(messagesRef, where("sender", "==", "user"), where("status", "!=", "read"));
-                        onSnapshot(unreadQuery, (snapshot) => {
-                            const unreadCount = snapshot.size;
-                            const badge = document.getElementById(`badge-${docId}`);
-                            if (badge) {
-                                if (unreadCount > 0) {
-                                    badge.innerText = unreadCount;
-                                    badge.style.display = 'flex';
-                                } else {
-                                    badge.style.display = 'none';
-                                }
-                            }
-                        });
-                    });
+                            <div id="badge-${docId}" class="unread-badge" style="display: none;">0</div>
+                        </div>
+                        <div class="status-container">
+                            ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px; color:#aaa;">No tag</span>'}
+                            <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
+                                <option value="" disabled selected>Assign status...</option>
+                                <option value="Payment Pending">Payment Pending</option>
+                                <option value="Plan 1">Plan 1</option>
+                                <option value="Plan 2">Plan 2</option>
+                                <option value="Completed">Completed</option>
+                                <option value="custom">✍️ Custom Status...</option>
+                            </select>
+                            ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
+                            <button class="delete-user-btn" onclick="event.stopPropagation(); window.deleteUser('${docId}', '${userName}')">🗑 Delete</button>
+                        </div>
+                    `;
+                    userListDiv.appendChild(itemDiv);
                 });
             } catch (error) {
                 console.error("Error loading inbox: ", error);
@@ -577,83 +268,31 @@
             }
         }
 
-        // ==========================================
-        // 🔥 CLEAR CHAT
-        // ==========================================
-        window.clearChat = async function(docId, userName) {
-            if (!confirm(`⚠️ Are you sure you want to clear ALL messages for "${userName}"?`)) {
-                return;
-            }
+        // Auto refresh every 3 seconds
+        setInterval(loadInbox, 3000);
 
-            try {
-                const messagesRef = collection(db, "group_messages", docId, "messages");
-                const messagesSnapshot = await getDocs(messagesRef);
-                
-                const deletePromises = [];
-                messagesSnapshot.forEach((msgDoc) => {
-                    deletePromises.push(deleteDoc(doc(db, "group_messages", docId, "messages", msgDoc.id)));
-                });
-                await Promise.all(deletePromises);
-                await updateDoc(doc(db, "group_messages", docId), { lastUpdated: Date.now() });
+        window.goBackToInbox = function() { loadInbox(); };
 
-                if (activeDocId === docId) {
-                    chatBox.innerHTML = "<div style='padding: 20px; text-align: center; color: #6b7a85;'>Chat cleared. No messages.</div>";
-                }
-                alert(`✅ All messages for "${userName}" have been cleared.`);
-            } catch (error) {
-                console.error("Error clearing chat:", error);
-                alert("❌ Failed to clear chat.");
-            }
-        };
-
-        // ==========================================
-        // 🔥 GO BACK TO INBOX
-        // ==========================================
-        window.goBackToInbox = function() {
-            loadInbox();
-        };
-
-        // ==========================================
-        // 🔥 RENDER MESSAGE
-        // ==========================================
         function renderMessage(id, sender, type, content, timeStr, status) {
             const msgDiv = document.createElement('div');
             const isMe = sender === currentSender;
             msgDiv.classList.add('msg', isMe ? 'sent-by-me' : 'received-by-me');
-
             if (!content) return;
 
             if (type === 'text') {
-                const textNode = document.createElement('span');
-                textNode.innerText = content;
-                msgDiv.appendChild(textNode);
+                const textNode = document.createElement('span'); textNode.innerText = content; msgDiv.appendChild(textNode);
             } else if (type === 'image') {
-                const img = document.createElement('img');
-                img.src = content;
-                img.alt = "Image";
+                const img = document.createElement('img'); img.src = content; img.alt = "Image";
                 img.onload = () => { chatBox.scrollTop = chatBox.scrollHeight; };
-                img.addEventListener('click', () => openMediaLightbox('image', content));
-                msgDiv.appendChild(img);
+                img.addEventListener('click', () => openMediaLightbox('image', content)); msgDiv.appendChild(img);
             } else if (type === 'video') {
-                const wrapper = document.createElement('div');
-                wrapper.className = 'video-thumb';
-                const video = document.createElement('video');
-                video.src = content;
-                video.preload = "metadata";
-                video.muted = true;
-                const playOverlay = document.createElement('div');
-                playOverlay.className = 'play-overlay';
-                playOverlay.innerText = '▶';
-                wrapper.appendChild(video);
-                wrapper.appendChild(playOverlay);
-                wrapper.addEventListener('click', () => openMediaLightbox('video', content));
-                msgDiv.appendChild(wrapper);
+                const wrapper = document.createElement('div'); wrapper.className = 'video-thumb';
+                const video = document.createElement('video'); video.src = content; video.preload = "metadata"; video.muted = true;
+                const playOverlay = document.createElement('div'); playOverlay.className = 'play-overlay'; playOverlay.innerText = '▶';
+                wrapper.appendChild(video); wrapper.appendChild(playOverlay);
+                wrapper.addEventListener('click', () => openMediaLightbox('video', content)); msgDiv.appendChild(wrapper);
             } else if (type === 'audio') {
-                const audio = document.createElement('audio');
-                audio.src = content;
-                audio.controls = true;
-                audio.preload = "auto";
-                msgDiv.appendChild(audio);
+                const audio = document.createElement('audio'); audio.src = content; audio.controls = true; audio.preload = "auto"; msgDiv.appendChild(audio);
             }
 
             let ticksHtml = '';
@@ -673,26 +312,15 @@
 
         function openMediaLightbox(type, src) {
             const lightbox = document.getElementById('mediaLightbox');
-            const content = document.getElementById('mediaLightboxContent');
-            content.innerHTML = '';
-            if (type === 'image') {
-                const img = document.createElement('img');
-                img.src = src;
-                content.appendChild(img);
-            } else if (type === 'video') {
-                const video = document.createElement('video');
-                video.src = src;
-                video.controls = true;
-                video.autoplay = true;
-                content.appendChild(video);
-            }
+            const content = document.getElementById('mediaLightboxContent'); content.innerHTML = '';
+            if (type === 'image') { const img = document.createElement('img'); img.src = src; content.appendChild(img); }
+            else if (type === 'video') { const video = document.createElement('video'); video.src = src; video.controls = true; video.autoplay = true; content.appendChild(video); }
             lightbox.style.display = 'flex';
         }
 
         function closeMediaLightbox() {
             const lightbox = document.getElementById('mediaLightbox');
-            const content = document.getElementById('mediaLightboxContent');
-            content.innerHTML = '';
+            const content = document.getElementById('mediaLightboxContent'); content.innerHTML = '';
             lightbox.style.display = 'none';
         }
 
@@ -700,58 +328,21 @@
         const mediaLightboxCloseBtn = document.getElementById('mediaLightboxCloseBtn');
         if (mediaLightboxCloseBtn) mediaLightboxCloseBtn.addEventListener('click', closeMediaLightbox);
         if (mediaLightboxEl) {
-            mediaLightboxEl.addEventListener('click', (e) => {
-                if (e.target === mediaLightboxEl) closeMediaLightbox();
-            });
+            mediaLightboxEl.addEventListener('click', (e) => { if (e.target === mediaLightboxEl) closeMediaLightbox(); });
         }
 
-        function getFormattedTime() {
-            const now = new Date();
-            let hours = now.getHours(); let minutes = now.getMinutes();
-            const ampm = hours >= 12 ? 'PM' : 'AM';
-            hours = hours % 12; hours = hours ? hours : 12;
-            minutes = minutes < 10 ? '0'+minutes : minutes;
-            return hours + ':' + minutes + ' ' + ampm;
-        }
-
-        const CLOUDFLARE_WORKER_URL = "https://teachhub-notify.github567h.workers.dev";
-
-        async function sendPushNotification(chatId, messageText) {
-            try {
-                await fetch(CLOUDFLARE_WORKER_URL, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        chat_id: chatId,
-                        title: "Teach Hub Support",
-                        message: messageText
-                    })
-                });
-            } catch (e) {
-                console.log("Push notification failed to send:", e);
-            }
-        }
-
-        async function sendMessageToFirebase(type, content) {
+        async function sendMessage(type, content) {
             if (!activeDocId) return;
-            const timestamp = Date.now();
-            const messageData = {
-                sender: currentSender,
-                type: type,
-                time_now: timestamp,
-                time_label: getFormattedTime(),
-                status: "sent",
-                file_url: type !== 'text' ? content : "",
-                message_text: type === 'text' ? content : `Sent a ${type}`
-            };
-
-            await addDoc(collection(db, "group_messages", activeDocId, "messages"), messageData);
-            await updateChatTimestamp(activeDocId);
-            sendPushNotification(activeDocId, messageData.message_text);
+            let finalContent = content;
+            if (type !== 'text') {
+                finalContent = await uploadToImgBB(content);
+                if (!finalContent) return;
+            }
+            await sendMessageToSupabase(type, finalContent);
         }
 
-        sendBtn.addEventListener('click', () => { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } });
-        msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessageToFirebase('text', t); } } });
+        sendBtn.addEventListener('click', () => { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessage('text', t); } });
+        msgInput.addEventListener('keypress', (e) => { if (e.key === 'Enter') { const t = msgInput.value.trim(); if(t){ msgInput.value=""; sendMessage('text', t); } } });
 
         const toBase64 = file => new Promise((resolve, reject) => {
             const reader = new FileReader(); reader.readAsDataURL(file);
@@ -762,8 +353,7 @@
             const file = e.target.files[0]; if (!file) return;
             if (file.size > 1548576) { alert("File size limit is 1.5MB."); return; }
             let fileType = file.type.startsWith('image/') ? 'image' : file.type.startsWith('video/') ? 'video' : file.type.startsWith('audio/') ? 'audio' : 'text';
-            const base64 = await toBase64(file);
-            sendMessageToFirebase(fileType, base64);
+            sendMessage(fileType, file);
         });
 
         voiceBtn.addEventListener('click', async () => {
@@ -774,8 +364,7 @@
                     mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
                     mediaRecorder.onstop = async () => {
                         const blob = new Blob(audioChunks, { type: 'audio/mp3' });
-                        const base64 = await toBase64(blob);
-                        sendMessageToFirebase('audio', base64);
+                        sendMessage('audio', blob);
                     };
                     mediaRecorder.start(); isRecording = true; voiceBtn.classList.add('recording'); voiceBtn.innerText = "🛑";
                 }
@@ -786,40 +375,41 @@
     </script>
 </head>
 <body>
-<div class="chat-container">
-    <div id="inbox-view">
-        <div class="inbox-header">
-            <img src="logo-192.png" alt="Teach Hub">
-            <span>Teach Hub - Staff Inbox</span>
+    <!-- HTML Body bilkul waisa hi hai -->
+    <div class="chat-container">
+        <div id="inbox-view">
+            <div class="inbox-header">
+                <img src="logo-192.png" alt="Teach Hub">
+                <span>Teach Hub - Staff Inbox</span>
+            </div>
+            <div class="user-list" id="userList"></div>
         </div>
-        <div class="user-list" id="userList"></div>
-    </div>
 
-    <div id="chat-view">
-        <div class="chat-header">
-            <button class="back-btn" onclick="goBackToInbox()">←</button>
-            <img class="profile-img" src="logo-192.png" alt="Profile">
-            <div class="header-info">
-                <div class="name" id="chatTitle">Support Panel</div>
-                <div class="status">active chat session</div>
+        <div id="chat-view">
+            <div class="chat-header">
+                <button class="back-btn" onclick="goBackToInbox()">←</button>
+                <img class="profile-img" src="logo-192.png" alt="Profile">
+                <div class="header-info">
+                    <div class="name" id="chatTitle">Support Panel</div>
+                    <div class="status">active chat session</div>
+                </div>
+            </div>
+            <div class="chat-messages" id="chatBox"></div>
+            <div class="chat-input-area">
+                <div class="input-container">
+                    <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
+                    <button class="icon-btn" onclick="document.getElementById('mediaInput').click()" style="margin-right: 8px;">📎</button>
+                    <input type="text" id="msgInput" placeholder="Reply to student...">
+                    <button class="icon-btn" id="voiceBtn">🎙️</button>
+                </div>
+                <button class="send-btn" id="sendBtn">➤</button>
             </div>
         </div>
-        <div class="chat-messages" id="chatBox"></div>
-        <div class="chat-input-area">
-            <div class="input-container">
-                <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
-                <button class="icon-btn" onclick="document.getElementById('mediaInput').click()" style="margin-right: 8px;">📎</button>
-                <input type="text" id="msgInput" placeholder="Reply to student...">
-                <button class="icon-btn" id="voiceBtn">🎙️</button>
-            </div>
-            <button class="send-btn" id="sendBtn">➤</button>
-        </div>
     </div>
-</div>
 
-<div class="media-lightbox" id="mediaLightbox">
-    <button class="media-lightbox-close" id="mediaLightboxCloseBtn">✕</button>
-    <div id="mediaLightboxContent"></div>
-</div>
+    <div class="media-lightbox" id="mediaLightbox">
+        <button class="media-lightbox-close" id="mediaLightboxCloseBtn">✕</button>
+        <div id="mediaLightboxContent"></div>
+    </div>
 </body>
 </html>
