@@ -46,6 +46,12 @@
 
         .msg-meta { align-self: flex-end; display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #6b7a85; user-select: none; }
 
+        /* 🔥 DOUBLE TICK STYLES */
+        .tick { display: inline-block; font-weight: bold; font-size: 12px; margin-left: 2px; }
+        .tick.sent { color: #8696a0; }
+        .tick.delivered { color: #8696a0; }
+        .tick.read { color: #1B84D8; }
+
         .chat-input-area { padding: 10px; background: #e4e9ec; display: flex; align-items: center; gap: 8px; }
         .input-container { flex: 1; background: #fff; border-radius: 24px; display: flex; align-items: center; padding: 2px 12px; }
         .input-container input[type="text"] { flex: 1; border: none; outline: none; padding: 10px 4px; font-size: 15px; background: transparent; }
@@ -162,11 +168,11 @@ async function sendMessage(type, content) {
     if (type === 'text') {
         messageText = content;
     } else if (type === 'audio') {
-        // 🔥 Audio directly as Base64 (no ImgBB)
+        // 🔥 Voice → Firebase (Base64)
         fileUrl = content;
         messageText = 'Sent a voice note';
     } else {
-        // Images/Videos → ImgBB
+        // 🔥 Images/Videos → ImgBB
         const url = await uploadToImgBB(content);
         if (!url) {
             alert('Upload failed!');
@@ -184,7 +190,7 @@ async function sendMessage(type, content) {
             file_url: fileUrl,
             time_now: Date.now(),
             time_label: new Date().toLocaleTimeString(),
-            status: 'sent'
+            status: 'sent'  // 🔥 Status track
         });
 }
 
@@ -202,19 +208,23 @@ function loadMessages() {
             
             snapshot.forEach((doc) => {
                 const data = doc.data();
-                renderMessage(data);
+                renderMessage(doc.id, data);
             });
             
             chatBox.scrollTop = chatBox.scrollHeight;
         });
 }
 
-function renderMessage(data) {
+// ==========================================
+// 🔥 RENDER MESSAGE WITH DOUBLE TICK
+// ==========================================
+function renderMessage(docId, data) {
     const chatBox = document.getElementById('chatBox');
     const msgDiv = document.createElement('div');
     const isMe = data.sender === 'user';
     msgDiv.classList.add('msg', isMe ? 'sent-by-me' : 'received-by-me');
 
+    // Content
     if (data.type === 'text') {
         msgDiv.innerHTML = `<span>${data.message_text}</span>`;
     } else if (data.type === 'image') {
@@ -225,11 +235,34 @@ function renderMessage(data) {
         msgDiv.innerHTML = `<audio src="${data.file_url}" controls></audio>`;
     }
 
+    // 🔥 DOUBLE TICK
+    let tickHtml = '';
+    if (isMe) {
+        if (data.status === 'sent') {
+            tickHtml = '<span class="tick sent">✓</span>';
+        } else if (data.status === 'delivered') {
+            tickHtml = '<span class="tick delivered">✓✓</span>';
+        } else if (data.status === 'read') {
+            tickHtml = '<span class="tick read">✓✓</span>';
+        } else {
+            tickHtml = '<span class="tick sent">✓</span>';
+        }
+    }
+
     const metaDiv = document.createElement('div');
     metaDiv.classList.add('msg-meta');
-    metaDiv.innerHTML = `<span>${data.time_label || ''}</span>`;
+    metaDiv.innerHTML = `<span>${data.time_label || ''}</span> ${tickHtml}`;
     msgDiv.appendChild(metaDiv);
     chatBox.appendChild(msgDiv);
+
+    // 🔥 Auto-mark as read when user sees admin message
+    if (!isMe && data.status !== 'read') {
+        db.collection('group_messages')
+            .doc(myChatDocId)
+            .collection('messages')
+            .doc(docId)
+            .update({ status: 'read' });
+    }
 }
 
 // ==========================================
@@ -305,7 +338,7 @@ document.getElementById('mediaInput').addEventListener('change', async (e) => {
 });
 
 // ==========================================
-// 🔥 VOICE RECORDING - FIXED
+// 🔥 VOICE RECORDING
 // ==========================================
 let mediaRecorder, audioChunks = [], isRecording = false;
 
@@ -319,13 +352,10 @@ document.getElementById('voiceBtn').addEventListener('click', async () => {
             mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
             mediaRecorder.onstop = async () => {
                 const blob = new Blob(audioChunks, { type: 'audio/mp3' });
-                
-                // 🔥 Convert to Base64
                 const reader = new FileReader();
                 reader.readAsDataURL(blob);
                 reader.onload = async () => {
-                    const base64 = reader.result;
-                    await sendMessage('audio', base64);
+                    await sendMessage('audio', reader.result);
                 };
             };
             
