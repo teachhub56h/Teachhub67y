@@ -1,18 +1,134 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Test 1 - Simple</title>
+    <title>Test - Complete</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { font-family: Arial; padding: 20px; background: #eef2f5; }
+        button { padding: 15px 30px; font-size: 18px; margin: 10px; border: none; border-radius: 10px; cursor: pointer; }
+        .btn1 { background: green; color: white; }
+        .btn2 { background: #1B4F72; color: white; }
+        .btn3 { background: #e67e22; color: white; }
+        .result { margin-top: 20px; padding: 15px; background: white; border-radius: 10px; font-size: 16px; }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+    </style>
 </head>
 <body>
-    <h1 style="color:blue;">🔵 Test 1: Simple HTML</h1>
-    <button onclick="alert('✅ Button works!')" style="padding:20px;font-size:20px;background:green;color:white;border:none;border-radius:10px;">
-        Click Me
-    </button>
-    <p id="msg" style="font-size:18px;margin-top:20px;"></p>
+
+    <h1>🔵 Complete Test</h1>
     
+    <button class="btn1" onclick="test1()">1. Simple Test</button>
+    <button class="btn2" onclick="test2()">2. Supabase Test</button>
+    <button class="btn3" onclick="test3()">3. Load Users</button>
+    
+    <div id="result" class="result">✅ Page loaded! Press any button.</div>
+
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
-        document.getElementById('msg').innerHTML = '✅ Page loaded successfully!';
+        // ==========================================
+        // YOUR KEYS
+        // ==========================================
+        const SUPABASE_URL = 'https://ivfxhrfqwzbvmiebrgfd.supabase.co';
+        const SUPABASE_ANON_KEY = 'sb_publishable_GTLlHlf7xyPjITGtlC-ozg_3myRnLWM';
+        const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+        function showResult(msg, type = 'info') {
+            const div = document.getElementById('result');
+            const emoji = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+            const color = type === 'success' ? 'green' : type === 'error' ? 'red' : 'blue';
+            div.innerHTML = `<span style="color:${color};font-size:18px;">${emoji} ${msg}</span>`;
+        }
+
+        // ==========================================
+        // TEST 1: Simple Test
+        // ==========================================
+        function test1() {
+            showResult('Button clicked! JavaScript is working!', 'success');
+            alert('✅ JavaScript is working!');
+        }
+
+        // ==========================================
+        // TEST 2: Supabase Connection
+        // ==========================================
+        async function test2() {
+            showResult('⏳ Testing Supabase connection...', 'info');
+            
+            try {
+                // Check connection
+                const { data, error } = await supabase
+                    .from('messages')
+                    .select('count')
+                    .limit(1);
+                    
+                if (error) {
+                    showResult('Connection failed: ' + error.message, 'error');
+                    return;
+                }
+                
+                showResult('✅ Supabase connected! Now inserting test message...', 'success');
+                
+                // Insert test message
+                const testId = 'test_' + Date.now();
+                const { error: insertError } = await supabase
+                    .from('messages')
+                    .insert([{
+                        chat_id: testId,
+                        sender: 'user',
+                        type: 'text',
+                        message_text: 'Test from browser ' + new Date().toLocaleTimeString(),
+                        time_now: Date.now()
+                    }]);
+                    
+                if (insertError) {
+                    showResult('Insert failed: ' + insertError.message, 'error');
+                    return;
+                }
+                
+                showResult('✅ Test message inserted! Check Supabase dashboard.', 'success');
+                
+            } catch (e) {
+                showResult('Exception: ' + e.message, 'error');
+            }
+        }
+
+        // ==========================================
+        // TEST 3: Load Users
+        // ==========================================
+        async function test3() {
+            showResult('⏳ Loading users...', 'info');
+            
+            try {
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('*')
+                    .order('created_at', { ascending: false });
+                    
+                if (error) {
+                    showResult('Error: ' + error.message, 'error');
+                    return;
+                }
+                
+                if (!data || data.length === 0) {
+                    showResult('No users found. Send a message from student app first.', 'info');
+                    return;
+                }
+                
+                let msg = 'Found ' + data.length + ' users:<br><br>';
+                data.forEach((user, i) => {
+                    msg += (i+1) + '. ID: ' + user.id.substring(0, 20) + '... - Status: ' + (user.status || 'No status') + '<br>';
+                });
+                showResult(msg, 'success');
+                
+            } catch (e) {
+                showResult('Exception: ' + e.message, 'error');
+            }
+        }
+
+        // Page loaded
         alert('✅ Page loaded!');
+        console.log('✅ Page loaded!');
     </script>
 </body>
 </html>
