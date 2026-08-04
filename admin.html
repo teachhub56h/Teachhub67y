@@ -13,10 +13,11 @@
         #inbox-view { display: flex; flex-direction: column; height: 100%; background: #ffffff; }
         .inbox-header { background: #1B4F72; color: white; padding: 16px; font-size: 18px; font-weight: 600; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
         .inbox-header img { width: 26px; height: 26px; }
-        .inbox-header .header-actions { display: flex; gap: 8px; margin-left: auto; }
+        .inbox-header .header-actions { display: flex; gap: 8px; margin-left: auto; flex-wrap: wrap; }
         .inbox-header .header-actions button { padding: 5px 12px; border: none; border-radius: 15px; font-size: 12px; font-weight: 600; cursor: pointer; }
         .btn-delete-selected { background: #e53935; color: white; }
         .btn-delete-selected:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-delete-all { background: #c62828; color: white; }
 
         .user-list { flex: 1; overflow-y: auto; padding: 8px 0; background: #ffffff; }
 
@@ -90,6 +91,9 @@
             <div class="header-actions">
                 <button class="btn-delete-selected" id="deleteSelectedBtn" disabled onclick="deleteSelectedUsers()">
                     🗑 Delete Selected
+                </button>
+                <button class="btn-delete-all" onclick="deleteAllUsers()">
+                    🗑 Delete All
                 </button>
             </div>
         </div>
@@ -212,6 +216,67 @@ const toBase64 = file => new Promise((resolve, reject) => {
 });
 
 // ==========================================
+// 🔥 FAST DELETE USER (Batch Delete)
+// ==========================================
+async function deleteUserCompletely(docId, userName) {
+    try {
+        // 🔥 Delete ALL messages in ONE GO
+        const messagesRef = db.collection('group_messages').doc(docId).collection('messages');
+        const snapshot = await messagesRef.get();
+        const batch = db.batch();
+        snapshot.docs.forEach((doc) => {
+            batch.delete(doc.ref);
+        });
+        await batch.commit();
+        
+        // 🔥 Delete user document
+        await db.collection('group_messages').doc(docId).delete();
+        
+        let savedNames = localStorage.getItem('chatUserNames');
+        if (savedNames) {
+            savedNames = JSON.parse(savedNames);
+            delete savedNames[docId];
+            localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
+        }
+        console.log(`✅ Fast deleted user: ${userName} (${docId})`);
+        return true;
+    } catch (error) {
+        console.error("Error deleting user:", error);
+        return false;
+    }
+}
+
+// ==========================================
+// 🔥 DELETE ALL USERS (Batch Delete)
+// ==========================================
+async function deleteAllUsers() {
+    if (!confirm('⚠️ Delete ALL users and ALL messages? This cannot be undone!')) return;
+    
+    try {
+        const snapshot = await db.collection('group_messages').get();
+        const batch = db.batch();
+        
+        for (const doc of snapshot.docs) {
+            // Delete all messages
+            const msgSnapshot = await db.collection('group_messages').doc(doc.id).collection('messages').get();
+            msgSnapshot.docs.forEach((msg) => {
+                batch.delete(msg.ref);
+            });
+            // Delete user
+            batch.delete(doc.ref);
+        }
+        
+        await batch.commit();
+        localStorage.removeItem('chatUserNames');
+        alert('✅ All users and messages deleted!');
+        loadInbox();
+    } catch (error) {
+        console.error("Error deleting all:", error);
+        alert('❌ Error deleting all users');
+    }
+}
+
+// ==========================================
 // 🔥 SMART AUTO-CLEAR (Ek Ek Karke)
 // ==========================================
 async function autoClearOldMessages(docId) {
@@ -226,31 +291,6 @@ async function autoClearOldMessages(docId) {
         }
     } catch (error) {
         console.error("Auto-clear error:", error);
-    }
-}
-
-// ==========================================
-// 🔥 DELETE USER COMPLETE
-// ==========================================
-async function deleteUserCompletely(docId, userName) {
-    try {
-        const messages = await db.collection('group_messages').doc(docId).collection('messages').get();
-        for (const msg of messages.docs) {
-            await db.collection('group_messages').doc(docId).collection('messages').doc(msg.id).delete();
-        }
-        await db.collection('group_messages').doc(docId).delete();
-        
-        let savedNames = localStorage.getItem('chatUserNames');
-        if (savedNames) {
-            savedNames = JSON.parse(savedNames);
-            delete savedNames[docId];
-            localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
-        }
-        console.log(`✅ Deleted user: ${userName} (${docId})`);
-        return true;
-    } catch (error) {
-        console.error("Error deleting user:", error);
-        return false;
     }
 }
 
@@ -512,7 +552,6 @@ window.openChat = function(docId, userName) {
             
             chatBox.scrollTop = chatBox.scrollHeight;
             
-            // Check auto-clear
             if (snapshot.size > 70) {
                 autoClearOldMessages(docId);
             }
