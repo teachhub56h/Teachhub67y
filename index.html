@@ -255,9 +255,11 @@ async function uploadToImgBB(file) {
 }
 
 // ==========================================
-// 🔥 SEND MESSAGE
+// 🔥 SEND MESSAGE - FIXED WITH ALERTS
 // ==========================================
 async function sendMessage(type, content) {
+    // Alert 1
+    alert('📤 Sending ' + type + ' message...');
     logDebug('📤 Sending ' + type + ' message...', 'info');
     
     try {
@@ -268,23 +270,31 @@ async function sendMessage(type, content) {
             time_now: Date.now()
         };
 
+        // Alert 2
+        alert('Chat ID: ' + myChatDocId);
+        logDebug('Chat ID: ' + myChatDocId, 'info');
+
         if (type === 'text') {
             messageData.message_text = content;
             messageData.file_url = '';
+            alert('Text: ' + content);
             logDebug('Text: ' + content, 'info');
         } else {
+            alert('Uploading media...');
             logDebug('Uploading media...', 'info');
             const url = await uploadToImgBB(content);
             if (!url) {
-                logDebug('Upload failed!', 'error');
                 alert('❌ Upload failed!');
+                logDebug('Upload failed!', 'error');
                 return;
             }
             messageData.message_text = `Sent a ${type}`;
             messageData.file_url = url;
+            alert('Media uploaded: ' + url);
             logDebug('Media uploaded: ' + url, 'success');
         }
 
+        alert('Sending to Supabase...');
         logDebug('Sending to Supabase...', 'info');
         
         const { data, error } = await supabase
@@ -293,12 +303,13 @@ async function sendMessage(type, content) {
             .select();
 
         if (error) {
+            alert('❌ Supabase Error: ' + error.message);
             logDebug('❌ Supabase Error: ' + error.message, 'error');
             logDebug('Error code: ' + error.code, 'error');
-            alert('❌ Error: ' + error.message);
             return;
         }
 
+        alert('✅ Message sent successfully!');
         logDebug('✅ Message sent successfully!', 'success');
         logDebug('Data: ' + JSON.stringify(data), 'success');
         
@@ -307,8 +318,8 @@ async function sendMessage(type, content) {
         document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
         
     } catch (error) {
+        alert('❌ Exception: ' + error.message);
         logDebug('❌ Exception: ' + error.message, 'error');
-        alert('❌ Failed: ' + error.message);
     }
 }
 
@@ -409,6 +420,7 @@ function setupRealtime() {
 // 🔥 TEST SUPABASE
 // ==========================================
 async function testSupabase() {
+    alert('🔍 Testing Supabase...');
     logDebug('🔍 Testing Supabase...', 'info');
     
     // Test 1: Connection
@@ -419,20 +431,22 @@ async function testSupabase() {
             .limit(1);
             
         if (error) {
+            alert('❌ Connection failed: ' + error.message);
             logDebug('❌ Connection failed: ' + error.message, 'error');
-            alert('❌ Connection failed!\nError: ' + error.message);
             return;
         }
+        alert('✅ Connection successful!');
         logDebug('✅ Connection successful!', 'success');
     } catch (e) {
+        alert('❌ Exception: ' + e.message);
         logDebug('❌ Exception: ' + e.message, 'error');
-        alert('❌ Error: ' + e.message);
         return;
     }
     
     // Test 2: Insert test message
     try {
         const testId = 'test_' + Date.now();
+        alert('📤 Inserting test message...');
         logDebug('📤 Inserting test message...', 'info');
         
         const { data, error } = await supabase
@@ -448,21 +462,20 @@ async function testSupabase() {
             .select();
             
         if (error) {
+            alert('❌ Insert failed: ' + error.message);
             logDebug('❌ Insert failed: ' + error.message, 'error');
-            alert('❌ Insert failed!\nError: ' + error.message);
             return;
         }
         
+        alert('✅ Test message sent!');
         logDebug('✅ Test message sent!', 'success');
-        logDebug('Data: ' + JSON.stringify(data), 'success');
-        alert('✅ Test successful!\nCheck database for test message.');
         
         // Reload messages
         await loadExistingMessages();
         
     } catch (e) {
+        alert('❌ Exception: ' + e.message);
         logDebug('❌ Exception: ' + e.message, 'error');
-        alert('❌ Error: ' + e.message);
     }
 }
 
@@ -494,16 +507,22 @@ document.getElementById('mediaLightbox').addEventListener('click', (e) => {
 });
 
 // ==========================================
-// 🔥 EVENT LISTENERS
+// 🔥 EVENT LISTENERS - FIXED WITH ALERTS
 // ==========================================
 document.getElementById('sendBtn').onclick = () => {
     const input = document.getElementById('msgInput');
     const text = input.value.trim();
+    
+    alert('1️⃣ Send button clicked!');
+    logDebug('Send button clicked', 'info');
+    
     if (text) { 
-        logDebug('Send button clicked', 'info');
+        alert('2️⃣ Message: ' + text);
+        logDebug('Message: ' + text, 'info');
         sendMessage('text', text); 
         input.value = ''; 
     } else {
+        alert('⚠️ Message is empty!');
         logDebug('Empty message', 'warn');
     }
 };
@@ -513,6 +532,7 @@ document.getElementById('msgInput').addEventListener('keypress', (e) => {
         const input = document.getElementById('msgInput');
         const text = input.value.trim();
         if (text) { 
+            alert('Enter key pressed');
             logDebug('Enter key pressed', 'info');
             sendMessage('text', text); 
             input.value = ''; 
@@ -524,11 +544,12 @@ document.getElementById('mediaInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
     
+    alert('File selected: ' + file.name);
     logDebug('File selected: ' + file.name + ' (' + file.size + ' bytes)', 'info');
     
     if (file.size > 1572864) { 
+        alert('File too large: ' + file.size);
         logDebug('File too large: ' + file.size, 'error');
-        alert('File size limit is 1.5MB.'); 
         e.target.value = '';
         return;
     }
@@ -552,6 +573,7 @@ document.getElementById('voiceBtn').addEventListener('click', async () => {
             mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
             mediaRecorder.onstop = async () => {
                 const blob = new Blob(audioChunks, { type: 'audio/mp3' });
+                alert('Recording saved: ' + blob.size + ' bytes');
                 logDebug('Recording saved: ' + blob.size + ' bytes', 'info');
                 await sendMessage('audio', blob);
             };
@@ -559,16 +581,18 @@ document.getElementById('voiceBtn').addEventListener('click', async () => {
             isRecording = true;
             document.getElementById('voiceBtn').textContent = '🛑';
             document.getElementById('voiceBtn').classList.add('recording');
+            alert('Recording started');
             logDebug('Recording started', 'info');
         } catch (error) {
+            alert('Microphone error: ' + error.message);
             logDebug('Microphone error: ' + error.message, 'error');
-            alert('Microphone access denied.');
         }
     } else {
         mediaRecorder.stop();
         isRecording = false;
         document.getElementById('voiceBtn').textContent = '🎙️';
         document.getElementById('voiceBtn').classList.remove('recording');
+        alert('Recording stopped');
         logDebug('Recording stopped', 'info');
     }
 });
@@ -638,12 +662,7 @@ logDebug('✅ App ready!', 'success');
 logDebug('📱 Chat ID: ' + myChatDocId, 'info');
 logDebug('💡 Tap "Show Log" to see debug info', 'info');
 
-// Show debug panel automatically
-setTimeout(() => {
-    if (!debugVisible) {
-        toggleDebug();
-    }
-}, 1000);
+alert('✅ App started! Chat ID: ' + myChatDocId);
 </script>
 </body>
 </html>
