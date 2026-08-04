@@ -46,7 +46,6 @@
 
         .msg-meta { align-self: flex-end; display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #6b7a85; user-select: none; }
 
-        /* 🔥 DOUBLE TICK */
         .tick { display: inline-block; font-weight: bold; font-size: 12px; margin-left: 2px; }
         .tick.sent { color: #8696a0; }
         .tick.delivered { color: #8696a0; }
@@ -99,12 +98,13 @@
     <div id="mediaLightboxContent"></div>
 </div>
 
+<!-- 🔥 FIREBASE SDK - Realtime Database -->
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
 
 <script>
 // ==========================================
-// 🔥 FIREBASE CONFIG
+// 🔥 FIREBASE CONFIG (Realtime Database)
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
@@ -112,11 +112,12 @@ const firebaseConfig = {
     projectId: "newpro-affc8",
     storageBucket: "newpro-affc8.firebasestorage.app",
     messagingSenderId: "1080341611919",
-    appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
+    appId: "1:1080341611919:web:373d7fa13901e4b41c77fa",
+    databaseURL: "https://newpro-affe3-default-rtdb.firebaseio.com/"
 };
 
 firebase.initializeApp(firebaseConfig);
-const db = firebase.firestore();
+const db = firebase.database();
 
 // ==========================================
 // 🔥 IMGBB API KEY
@@ -134,12 +135,11 @@ if (!myChatDocId) {
 console.log('📢 Your Chat ID:', myChatDocId);
 
 // ==========================================
-// 🔥 UPLOAD TO IMGBB (Images & Videos Only)
+// 🔥 UPLOAD TO IMGBB
 // ==========================================
 async function uploadToImgBB(file) {
     const formData = new FormData();
     formData.append('image', file);
-    
     const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_KEY}`, {
         method: 'POST',
         body: formData
@@ -159,26 +159,7 @@ const toBase64 = file => new Promise((resolve, reject) => {
 });
 
 // ==========================================
-// 🔥 SMART AUTO-CLEAR (Ek Ek Karke)
-// ==========================================
-async function autoClearOldMessages() {
-    try {
-        const messagesRef = db.collection('group_messages').doc(myChatDocId).collection('messages');
-        const snapshot = await messagesRef.orderBy('time_now', 'asc').get();
-        
-        // Agar 71+ messages hain, toh SIRF EK PURANA DELETE KARO
-        if (snapshot.size > 70) {
-            const oldestDoc = snapshot.docs[0];
-            await messagesRef.doc(oldestDoc.id).delete();
-            console.log(`✅ Deleted 1 old message. Now ${snapshot.size - 1} messages remaining.`);
-        }
-    } catch (error) {
-        console.error("Auto-clear error:", error);
-    }
-}
-
-// ==========================================
-// 🔥 SEND MESSAGE
+// 🔥 SEND MESSAGE (Realtime Database)
 // ==========================================
 async function sendMessage(type, content) {
     let fileUrl = '';
@@ -199,51 +180,33 @@ async function sendMessage(type, content) {
         messageText = `Sent a ${type}`;
     }
     
-    await db.collection('group_messages').doc(myChatDocId)
-        .collection('messages').add({
-            sender: 'user',
-            type: type,
-            message_text: messageText,
-            file_url: fileUrl,
-            time_now: Date.now(),
-            time_label: new Date().toLocaleTimeString(),
-            status: 'sent'
-        });
+    const msgData = {
+        sender: 'user',
+        type: type,
+        message_text: messageText,
+        file_url: fileUrl,
+        time_now: Date.now(),
+        time_label: new Date().toLocaleTimeString(),
+        status: 'sent'
+    };
     
-    // Auto-clear after sending
-    setTimeout(autoClearOldMessages, 1000);
+    await db.ref('chats/' + myChatDocId + '/messages').push(msgData);
 }
 
 // ==========================================
-// 🔥 LOAD MESSAGES
+// 🔥 LOAD MESSAGES (Real-time)
 // ==========================================
 function loadMessages() {
-    db.collection('group_messages')
-        .doc(myChatDocId)
-        .collection('messages')
-        .orderBy('time_now', 'asc')
-        .onSnapshot((snapshot) => {
-            const chatBox = document.getElementById('chatBox');
-            chatBox.innerHTML = '';
-            
-            snapshot.forEach((doc) => {
-                const data = doc.data();
-                renderMessage(doc.id, data);
-            });
-            
-            chatBox.scrollTop = chatBox.scrollHeight;
-            
-            // Check auto-clear
-            if (snapshot.size > 70) {
-                autoClearOldMessages();
-            }
+    db.ref('chats/' + myChatDocId + '/messages')
+        .orderByChild('time_now')
+        .on('child_added', (snapshot) => {
+            const data = snapshot.val();
+            renderMessage(snapshot.key, data);
+            document.getElementById('chatBox').scrollTop = document.getElementById('chatBox').scrollHeight;
         });
 }
 
-// ==========================================
-// 🔥 RENDER MESSAGE WITH DOUBLE TICK
-// ==========================================
-function renderMessage(docId, data) {
+function renderMessage(msgId, data) {
     const chatBox = document.getElementById('chatBox');
     const msgDiv = document.createElement('div');
     const isMe = data.sender === 'user';
@@ -272,14 +235,6 @@ function renderMessage(docId, data) {
     metaDiv.innerHTML = `<span>${data.time_label || ''}</span> ${tickHtml}`;
     msgDiv.appendChild(metaDiv);
     chatBox.appendChild(msgDiv);
-
-    if (!isMe && data.status !== 'read') {
-        db.collection('group_messages')
-            .doc(myChatDocId)
-            .collection('messages')
-            .doc(docId)
-            .update({ status: 'read' });
-    }
 }
 
 // ==========================================
@@ -354,9 +309,6 @@ document.getElementById('mediaInput').addEventListener('change', async (e) => {
     e.target.value = '';
 });
 
-// ==========================================
-// 🔥 VOICE RECORDING
-// ==========================================
 let mediaRecorder, audioChunks = [], isRecording = false;
 
 document.getElementById('voiceBtn').addEventListener('click', async () => {
@@ -444,10 +396,6 @@ document.addEventListener('DOMContentLoaded', () => {
 // 🔥 START
 // ==========================================
 loadMessages();
-
-// Auto-clear check every 5 minutes
-setInterval(autoClearOldMessages, 5 * 60 * 1000);
-
 console.log('✅ Student app started! Chat ID:', myChatDocId);
 </script>
 </body>
