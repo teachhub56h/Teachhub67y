@@ -103,16 +103,16 @@
 
 <script>
 // ==========================================
-// 🔥 FIREBASE CONFIG
+// 🔥 FIREBASE CONFIG - SAHI KAR DIYA
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
     authDomain: "newpro-affc8.firebaseapp.com",
+    databaseURL: "https://newpro-affe3-default-rtdb.firebaseio.com/",
     projectId: "newpro-affc8",
     storageBucket: "newpro-affc8.firebasestorage.app",
     messagingSenderId: "1080341611919",
-    appId: "1:1080341611919:web:373d7fa13901e4b41c77fa",
-    databaseURL: "https://newpro-affe3-default-rtdb.firebaseio.com/"
+    appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -158,7 +158,7 @@ const toBase64 = file => new Promise((resolve, reject) => {
 });
 
 // ==========================================
-// 🔥 SEND MESSAGE
+// 🔥 SEND MESSAGE - DIRECT FIREBASE SAVE
 // ==========================================
 async function sendMessage(type, content) {
     let fileUrl = '';
@@ -190,12 +190,17 @@ async function sendMessage(type, content) {
         status: 'sent'
     };
     
-    // 🔥 Save to database
-    const newRef = db.ref('chats/' + myChatDocId + '/messages').push();
-    await newRef.set(msgData);
-    await db.ref('chats/' + myChatDocId + '/lastUpdated').set(timestamp);
-    
-    console.log('✅ Message sent:', msgData);
+    try {
+        // 🔥 Direct Firebase save
+        const newRef = db.ref('chats/' + myChatDocId + '/messages').push();
+        await newRef.set(msgData);
+        await db.ref('chats/' + myChatDocId + '/lastUpdated').set(timestamp);
+        console.log('✅ Message saved to Firebase:', msgData);
+        alert('✅ Message sent!');
+    } catch (error) {
+        console.error('❌ Firebase error:', error);
+        alert('❌ Error: ' + error.message);
+    }
 }
 
 // ==========================================
@@ -406,6 +411,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 loadMessages();
 console.log('✅ Student app started! Chat ID:', myChatDocId);
+alert('✅ App started! Chat ID: ' + myChatDocId);
 </script>
 </body>
 </html>
