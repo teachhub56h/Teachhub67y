@@ -131,7 +131,7 @@
 
 <script>
 // ==========================================
-// 🔥 FIREBASE CONFIG - SAHI KAR DIYA
+// 🔥 FIREBASE CONFIG - FINAL
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
@@ -146,13 +146,23 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 
+// Test connection
+db.ref('.info/connected').on('value', (snap) => {
+    if (snap.val() === true) {
+        console.log('✅ Admin: Connected to Firebase!');
+    } else {
+        console.log('❌ Admin: Not connected!');
+    }
+});
+
 // ==========================================
 // 🔥 IMGBB API KEY
 // ==========================================
 const IMG_BB_KEY = 'c10f07a29b678cda424ef81b2e5f2302';
 
 // ==========================================
-// 🔥 VARIABLES// ==========================================
+// 🔥 VARIABLES
+// ==========================================
 const inboxView = document.getElementById('inbox-view');
 const chatView = document.getElementById('chat-view');
 const userListDiv = document.getElementById('userList');
@@ -168,11 +178,6 @@ let activeDocId = "";
 let activeChatListener = null;
 let mediaRecorder, audioChunks = [], isRecording = false;
 let selectedUsers = new Set();
-
-// ==========================================
-// 🔥 SOUND
-// ==========================================
-const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
 
 // ==========================================
 // 🔥 USER NAME GENERATOR
@@ -448,7 +453,6 @@ window.openChat = function(docId, userName) {
             
             if (data.sender === 'user' && data.status !== 'read') {
                 db.ref('chats/' + docId + '/messages/' + snapshot.key + '/status').set('read');
-                msgSound.play().catch(() => {});
             }
             
             renderMessage(snapshot.key, data);
