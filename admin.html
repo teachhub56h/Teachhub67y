@@ -95,8 +95,8 @@
     <!-- LOGIN SCREEN -->
     <div id="login-view">
         <h2>🔒 Teach Hub Admin Login</h2>
-        <input type="email" id="loginEmail" placeholder="Admin email">
-        <input type="password" id="loginPassword" placeholder="Password">
+        <input type="email" id="loginEmail" placeholder="Admin email" value="samiseyam56@gmail.com">
+        <input type="password" id="loginPassword" placeholder="Password" value="sami.s.670">
         <button id="loginBtn">Login</button>
         <div id="login-error"></div>
     </div>
@@ -153,7 +153,7 @@
 
 <script>
 // ==========================================
-// 🔥 FIREBASE CONFIG - REALTIME DATABASE
+// 🔥 FIREBASE CONFIG
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDbjIDUk4bnJuVfSQZua61dyiDsjjC6uiU",
@@ -170,13 +170,11 @@ const db = firebase.database();
 const auth = firebase.auth();
 
 // ==========================================
-// 🔥 CONFIG: chat message limit + inactivity auto-delete
+// 🔥 CONFIG
 // ==========================================
 const MAX_MESSAGES_PER_CHAT = 30;
-const INACTIVITY_LIMIT_MS = 48 * 60 * 60 * 1000; // 48 hours
+const INACTIVITY_LIMIT_MS = 48 * 60 * 60 * 1000;
 
-// Keeps only the latest MAX_MESSAGES_PER_CHAT messages in a chat.
-// Runs after every message is sent (by admin or student).
 async function trimMessages(chatId, maxCount) {
     try {
         const snap = await db.ref('chats/' + chatId + '/messages').once('value');
@@ -196,8 +194,6 @@ async function trimMessages(chatId, maxCount) {
     }
 }
 
-// Deletes any chat whose lastUpdated is older than INACTIVITY_LIMIT_MS.
-// Runs once on login, then every 5 minutes while the admin panel stays open.
 async function checkStaleUsers() {
     try {
         const snap = await db.ref('chats').once('value');
@@ -429,7 +425,7 @@ window.deleteUser = async function(docId, userName) {
 };
 
 // ==========================================
-// 🔥 LOAD INBOX
+// 🔥 LOAD INBOX - FIXED (Root Se Load)
 // ==========================================
 function loadInbox() {
     inboxView.style.display = 'flex';
@@ -448,15 +444,39 @@ function loadInbox() {
 
     userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>⏳ Loading users...</div>";
 
-    db.ref('chats').on('value', (snapshot) => {
-        const chats = snapshot.val();
+    // 🔥 FIX: Root se load karo, chats/ se nahi
+    db.ref().on('value', (snapshot) => {
+        const data = snapshot.val();
         
-        if (!chats) {
+        if (!data) {
             userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>📭 No users yet. Share your link!</div>";
             return;
         }
 
-        const sortedChats = Object.entries(chats).sort((a, b) => {
+        // 🔥 Sirf woh nodes jo users hain (messages wali)
+        const userNodes = {};
+        let adminNode = null;
+        for (const [key, value] of Object.entries(data)) {
+            if (key === 'chats') {
+                // Old data structure support
+                if (value && typeof value === 'object') {
+                    for (const [chatKey, chatValue] of Object.entries(value)) {
+                        if (chatValue && chatValue.messages) {
+                            userNodes[chatKey] = chatValue;
+                        }
+                    }
+                }
+            } else if (value && value.messages) {
+                userNodes[key] = value;
+            }
+        }
+
+        if (Object.keys(userNodes).length === 0) {
+            userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>📭 No users yet. Share your link!</div>";
+            return;
+        }
+
+        const sortedChats = Object.entries(userNodes).sort((a, b) => {
             return (b[1].lastUpdated || 0) - (a[1].lastUpdated || 0);
         });
 
