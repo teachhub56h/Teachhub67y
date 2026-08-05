@@ -131,16 +131,16 @@
 
 <script>
 // ==========================================
-// 🔥 FIREBASE CONFIG
+// 🔥 FIREBASE CONFIG - SAHI KAR DIYA
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
     authDomain: "newpro-affc8.firebaseapp.com",
+    databaseURL: "https://newpro-affe3-default-rtdb.firebaseio.com/",
     projectId: "newpro-affc8",
     storageBucket: "newpro-affc8.firebasestorage.app",
     messagingSenderId: "1080341611919",
-    appId: "1:1080341611919:web:373d7fa13901e4b41c77fa",
-    databaseURL: "https://newpro-affe3-default-rtdb.firebaseio.com/"
+    appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
 };
 
 firebase.initializeApp(firebaseConfig);
@@ -152,8 +152,7 @@ const db = firebase.database();
 const IMG_BB_KEY = 'c10f07a29b678cda424ef81b2e5f2302';
 
 // ==========================================
-// 🔥 VARIABLES
-// ==========================================
+// 🔥 VARIABLES// ==========================================
 const inboxView = document.getElementById('inbox-view');
 const chatView = document.getElementById('chat-view');
 const userListDiv = document.getElementById('userList');
@@ -252,32 +251,6 @@ async function deleteAllUsers() {
 }
 
 // ==========================================
-// 🔥 AUTO-CLEAR (70+ messages)
-// ==========================================
-async function autoClearOldMessages(docId) {
-    try {
-        const snapshot = await db.ref('chats/' + docId + '/messages')
-            .orderByChild('time_now')
-            .limitToFirst(1)
-            .once('value');
-        
-        const msgs = snapshot.val();
-        if (!msgs) return;
-        
-        const totalSnapshot = await db.ref('chats/' + docId + '/messages').once('value');
-        const totalData = totalSnapshot.val();
-        const totalCount = totalData ? Object.keys(totalData).length : 0;
-        
-        if (totalCount > 70) {
-            const oldestKey = Object.keys(msgs)[0];
-            await db.ref('chats/' + docId + '/messages/' + oldestKey).remove();
-        }
-    } catch (error) {
-        console.error("Auto-clear error:", error);
-    }
-}
-
-// ==========================================
 // 🔥 SELECT/DESELECT
 // ==========================================
 function toggleUserSelection(docId, checkbox) {
@@ -352,7 +325,7 @@ window.deleteUser = async function(docId, userName) {
 };
 
 // ==========================================
-// 🔥 LOAD INBOX (SIMPLE & WORKING)
+// 🔥 LOAD INBOX
 // ==========================================
 function loadInbox() {
     inboxView.style.display = 'flex';
@@ -371,7 +344,6 @@ function loadInbox() {
 
     userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>⏳ Loading users...</div>";
 
-    // 🔥 Listen for changes on 'chats'
     db.ref('chats').on('value', (snapshot) => {
         const chats = snapshot.val();
         
@@ -380,7 +352,6 @@ function loadInbox() {
             return;
         }
 
-        // Sort by lastUpdated
         const sortedChats = Object.entries(chats).sort((a, b) => {
             return (b[1].lastUpdated || 0) - (a[1].lastUpdated || 0);
         });
@@ -445,10 +416,6 @@ function loadInbox() {
                 </div>
             `;
             userListDiv.appendChild(itemDiv);
-
-            if (msgCount > 70) {
-                autoClearOldMessages(docId);
-            }
         }
     });
 }
@@ -473,7 +440,6 @@ window.openChat = function(docId, userName) {
         activeChatListener = null; 
     }
 
-    // 🔥 Listen for new messages
     activeChatListener = db.ref('chats/' + docId + '/messages')
         .orderByChild('time_now')
         .on('child_added', (snapshot) => {
