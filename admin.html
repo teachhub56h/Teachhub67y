@@ -131,7 +131,7 @@
 
 <script>
 // ==========================================
-// 🔥 FIREBASE CONFIG - FINAL
+// 🔥 FIREBASE CONFIG - REALTIME DATABASE
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
@@ -145,15 +145,6 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-
-// Test connection
-db.ref('.info/connected').on('value', (snap) => {
-    if (snap.val() === true) {
-        console.log('✅ Admin: Connected to Firebase!');
-    } else {
-        console.log('❌ Admin: Not connected!');
-    }
-});
 
 // ==========================================
 // 🔥 IMGBB API KEY
