@@ -95,8 +95,8 @@
     <!-- LOGIN SCREEN -->
     <div id="login-view">
         <h2>🔒 Teach Hub Admin Login</h2>
-        <input type="email" id="loginEmail" placeholder="Admin email" value="samiseyam56@gmail.com">
-        <input type="password" id="loginPassword" placeholder="Password" value="sami.s.670">
+        <input type="email" id="loginEmail" placeholder="Admin email">
+        <input type="password" id="loginPassword" placeholder="Password">
         <button id="loginBtn">Login</button>
         <div id="login-error"></div>
     </div>
@@ -156,9 +156,9 @@
 // 🔥 FIREBASE CONFIG - REALTIME DATABASE
 // ==========================================
 const firebaseConfig = {
-    apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
+    apiKey: "AIzaSyDbjIDUk4bnJuVfSQZua61dyiDsjjC6uiU",
     authDomain: "newpro-affc8.firebaseapp.com",
-    databaseURL: "https://newpro-affe3-default-rtdb.firebaseio.com/",
+    databaseURL: "https://newpro-affc8-default-rtdb.firebaseio.com",
     projectId: "newpro-affc8",
     storageBucket: "newpro-affc8.firebasestorage.app",
     messagingSenderId: "1080341611919",
@@ -176,6 +176,7 @@ const MAX_MESSAGES_PER_CHAT = 30;
 const INACTIVITY_LIMIT_MS = 48 * 60 * 60 * 1000; // 48 hours
 
 // Keeps only the latest MAX_MESSAGES_PER_CHAT messages in a chat.
+// Runs after every message is sent (by admin or student).
 async function trimMessages(chatId, maxCount) {
     try {
         const snap = await db.ref('chats/' + chatId + '/messages').once('value');
@@ -196,6 +197,7 @@ async function trimMessages(chatId, maxCount) {
 }
 
 // Deletes any chat whose lastUpdated is older than INACTIVITY_LIMIT_MS.
+// Runs once on login, then every 5 minutes while the admin panel stays open.
 async function checkStaleUsers() {
     try {
         const snap = await db.ref('chats').once('value');
@@ -219,12 +221,6 @@ async function checkStaleUsers() {
 const loginView = document.getElementById('login-view');
 const loginBtn = document.getElementById('loginBtn');
 const loginError = document.getElementById('login-error');
-
-// Auto-login with saved credentials
-window.addEventListener('DOMContentLoaded', () => {
-    document.getElementById('loginEmail').value = 'samiseyam56@gmail.com';
-    document.getElementById('loginPassword').value = 'sami.s.670';
-});
 
 loginBtn.addEventListener('click', () => {
     const email = document.getElementById('loginEmail').value.trim();
