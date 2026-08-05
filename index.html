@@ -100,6 +100,7 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 
 <script>
 // ==========================================
@@ -108,7 +109,7 @@
 const firebaseConfig = {
     apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
     authDomain: "newpro-affc8.firebaseapp.com",
-    databaseURL: "https://newpro-affe3-default-rtdb.firebaseio.com/",
+    databaseURL: "https://newpro-affc8-default-rtdb.firebaseio.com",
     projectId: "newpro-affc8",
     storageBucket: "newpro-affc8.firebasestorage.app",
     messagingSenderId: "1080341611919",
@@ -117,17 +118,31 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const auth = firebase.auth();
 
-// ✅ Check connection
-db.ref('.info/connected').on('value', (snap) => {
-    if (snap.val() === true) {
-        console.log('✅ Connected to Firebase!');
-        alert('✅ Connected to Database!');
-    } else {
-        console.log('❌ Not connected');
-        alert('❌ Not connected to Database!');
+// ==========================================
+// 🔥 CONFIG: keep only latest 30 messages per chat
+// ==========================================
+const MAX_MESSAGES_PER_CHAT = 30;
+
+async function trimMessages(chatId, maxCount) {
+    try {
+        const snap = await db.ref('chats/' + chatId + '/messages').once('value');
+        const total = snap.numChildren();
+        if (total > maxCount) {
+            const excess = total - maxCount;
+            const oldestSnap = await db.ref('chats/' + chatId + '/messages')
+                .orderByChild('time_now')
+                .limitToFirst(excess)
+                .once('value');
+            const updates = {};
+            oldestSnap.forEach(child => { updates[child.key] = null; });
+            await db.ref('chats/' + chatId + '/messages').update(updates);
+        }
+    } catch (e) {
+        console.error('trimMessages error:', e);
     }
-});
+}
 
 // ==========================================
 // 🔥 IMGBB API KEY
@@ -135,14 +150,26 @@ db.ref('.info/connected').on('value', (snap) => {
 const IMG_BB_KEY = 'c10f07a29b678cda424ef81b2e5f2302';
 
 // ==========================================
-// 🔥 STUDENT ID
+// 🔥 STUDENT ID (now comes from anonymous auth, not localStorage)
 // ==========================================
-let myChatDocId = localStorage.getItem('my_chat_session_id');
-if (!myChatDocId) {
-    myChatDocId = "user_" + Date.now();
-    localStorage.setItem('my_chat_session_id', myChatDocId);
-}
-console.log('✅ Chat ID:', myChatDocId);
+let myChatDocId = null;
+let messagesLoaded = false;
+
+auth.onAuthStateChanged((user) => {
+    if (user) {
+        myChatDocId = user.uid;
+        console.log('✅ Signed in. Chat ID:', myChatDocId);
+        if (!messagesLoaded) {
+            messagesLoaded = true;
+            loadMessages();
+        }
+    }
+});
+
+auth.signInAnonymously().catch((error) => {
+    console.error('❌ Anonymous sign-in failed:', error);
+    alert('Could not connect. Please check your internet connection and reload.');
+});
 
 // ==========================================
 // 🔥 UPLOAD TO IMGBB
@@ -172,6 +199,11 @@ const toBase64 = file => new Promise((resolve, reject) => {
 // 🔥 SEND MESSAGE
 // ==========================================
 async function sendMessage(type, content) {
+    if (!myChatDocId) {
+        alert('Still connecting, please wait a second and try again.');
+        return;
+    }
+
     let fileUrl = '';
     let messageText = content;
     
@@ -205,8 +237,8 @@ async function sendMessage(type, content) {
         const newRef = db.ref('chats/' + myChatDocId + '/messages').push();
         await newRef.set(msgData);
         await db.ref('chats/' + myChatDocId + '/lastUpdated').set(timestamp);
+        await trimMessages(myChatDocId, MAX_MESSAGES_PER_CHAT);
         console.log('✅ Message saved!');
-        alert('✅ Message sent!');
     } catch (error) {
         console.error('❌ Error:', error);
         alert('❌ Error: ' + error.message);
@@ -227,12 +259,23 @@ function loadMessages() {
             renderMessage(snapshot.key, data);
             chatBox.scrollTop = chatBox.scrollHeight;
         });
+
+    db.ref('chats/' + myChatDocId + '/messages')
+        .on('child_removed', (snapshot) => {
+            removeMessageFromUI(snapshot.key);
+        });
+}
+
+function removeMessageFromUI(msgId) {
+    const el = document.getElementById('msg-' + msgId);
+    if (el) el.remove();
 }
 
 function renderMessage(msgId, data) {
     if (!data) return;
     const chatBox = document.getElementById('chatBox');
     const msgDiv = document.createElement('div');
+    msgDiv.id = 'msg-' + msgId;
     const isMe = data.sender === 'user';
     msgDiv.classList.add('msg', isMe ? 'sent-by-me' : 'received-by-me');
 
@@ -419,8 +462,7 @@ document.addEventListener('DOMContentLoaded', () => {
 // ==========================================
 // 🔥 START
 // ==========================================
-loadMessages();
-console.log('✅ Student app started! Chat ID:', myChatDocId);
+console.log('✅ Student app started, connecting...');
 </script>
 </body>
 </html>
