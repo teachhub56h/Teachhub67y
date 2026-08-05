@@ -103,7 +103,7 @@
 
 <script>
 // ==========================================
-// 🔥 FIREBASE CONFIG - REALTIME DATABASE
+// 🔥 FIREBASE CONFIG - CORRECT
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
@@ -117,6 +117,17 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+
+// ✅ Check connection
+db.ref('.info/connected').on('value', (snap) => {
+    if (snap.val() === true) {
+        console.log('✅ Connected to Firebase!');
+        alert('✅ Connected to Database!');
+    } else {
+        console.log('❌ Not connected');
+        alert('❌ Not connected to Database!');
+    }
+});
 
 // ==========================================
 // 🔥 IMGBB API KEY
@@ -172,7 +183,7 @@ async function sendMessage(type, content) {
     } else {
         const url = await uploadToImgBB(content);
         if (!url) {
-            alert('Upload failed!');
+            alert('❌ Upload failed!');
             return;
         }
         fileUrl = url;
