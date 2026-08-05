@@ -126,13 +126,12 @@
     <div id="mediaLightboxContent"></div>
 </div>
 
-<!-- 🔥 FIREBASE SDK - Realtime Database -->
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
 
 <script>
 // ==========================================
-// 🔥 FIREBASE CONFIG (Realtime Database)
+// 🔥 FIREBASE CONFIG
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDk4bnJuVfSQZua61dyIDajjC6u1U",
@@ -172,7 +171,7 @@ let mediaRecorder, audioChunks = [], isRecording = false;
 let selectedUsers = new Set();
 
 // ==========================================
-// 🔥 SOUND NOTIFICATION
+// 🔥 SOUND
 // ==========================================
 const msgSound = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-84.wav');
 
@@ -217,13 +216,11 @@ const toBase64 = file => new Promise((resolve, reject) => {
 });
 
 // ==========================================
-// 🔥 DELETE USER (Realtime Database)
+// 🔥 DELETE USER
 // ==========================================
 async function deleteUserCompletely(docId, userName) {
     try {
-        // Delete all messages
         await db.ref('chats/' + docId + '/messages').remove();
-        // Delete user
         await db.ref('chats/' + docId).remove();
         
         let savedNames = localStorage.getItem('chatUserNames');
@@ -232,33 +229,30 @@ async function deleteUserCompletely(docId, userName) {
             delete savedNames[docId];
             localStorage.setItem('chatUserNames', JSON.stringify(savedNames));
         }
-        console.log(`✅ Deleted user: ${userName} (${docId})`);
         return true;
     } catch (error) {
-        console.error("Error deleting user:", error);
+        console.error("Error:", error);
         return false;
     }
 }
 
 // ==========================================
-// 🔥 DELETE ALL USERS
+// 🔥 DELETE ALL
 // ==========================================
 async function deleteAllUsers() {
-    if (!confirm('⚠️ Delete ALL users and ALL messages? This cannot be undone!')) return;
-    
+    if (!confirm('⚠️ Delete ALL users and ALL messages?')) return;
     try {
         await db.ref('chats').remove();
         localStorage.removeItem('chatUserNames');
-        alert('✅ All users and messages deleted!');
+        alert('✅ All deleted!');
         loadInbox();
     } catch (error) {
-        console.error("Error:", error);
         alert('❌ Error: ' + error.message);
     }
 }
 
 // ==========================================
-// 🔥 SMART AUTO-CLEAR (Ek Ek Karke)
+// 🔥 AUTO-CLEAR (70+ messages)
 // ==========================================
 async function autoClearOldMessages(docId) {
     try {
@@ -270,14 +264,13 @@ async function autoClearOldMessages(docId) {
         const msgs = snapshot.val();
         if (!msgs) return;
         
-        // Count total messages
         const totalSnapshot = await db.ref('chats/' + docId + '/messages').once('value');
-        const totalCount = totalSnapshot.numChildren ? totalSnapshot.numChildren() : 0;
+        const totalData = totalSnapshot.val();
+        const totalCount = totalData ? Object.keys(totalData).length : 0;
         
         if (totalCount > 70) {
             const oldestKey = Object.keys(msgs)[0];
             await db.ref('chats/' + docId + '/messages/' + oldestKey).remove();
-            console.log(`✅ Deleted 1 old message for ${docId}. Now ${totalCount - 1} messages remaining.`);
         }
     } catch (error) {
         console.error("Auto-clear error:", error);
@@ -285,7 +278,7 @@ async function autoClearOldMessages(docId) {
 }
 
 // ==========================================
-// 🔥 SELECT/DESELECT USER
+// 🔥 SELECT/DESELECT
 // ==========================================
 function toggleUserSelection(docId, checkbox) {
     if (checkbox.checked) {
@@ -300,11 +293,11 @@ function toggleUserSelection(docId, checkbox) {
 }
 
 // ==========================================
-// 🔥 DELETE SELECTED USERS
+// 🔥 DELETE SELECTED
 // ==========================================
 async function deleteSelectedUsers() {
     if (selectedUsers.size === 0) return;
-    if (!confirm(`Delete ${selectedUsers.size} selected user(s) and all their chats?`)) return;
+    if (!confirm(`Delete ${selectedUsers.size} user(s)?`)) return;
     
     deleteSelectedBtn.disabled = true;
     deleteSelectedBtn.textContent = '⏳ Deleting...';
@@ -320,24 +313,21 @@ async function deleteSelectedUsers() {
     selectedUsers.clear();
     deleteSelectedBtn.disabled = true;
     deleteSelectedBtn.textContent = '🗑 Delete Selected';
-    alert(`✅ ${deleted} user(s) deleted successfully!`);
+    alert(`✅ ${deleted} user(s) deleted!`);
     loadInbox();
 }
 
 // ==========================================
-// 🔥 UPDATE STATUS (Realtime Database)
+// 🔥 STATUS
 // ==========================================
 async function updateCustomerStatus(docId, newStatus) {
     try {
         await db.ref('chats/' + docId + '/statusTag').set(newStatus);
     } catch (error) {
-        console.error("Error updating status: ", error);
+        console.error("Error:", error);
     }
 }
 
-// ==========================================
-// 🔥 STATUS HANDLERS
-// ==========================================
 window.handleStatusChange = function(selectElement, docId) {
     const val = selectElement.value;
     if (val === 'custom') {
@@ -353,11 +343,8 @@ window.removeStatus = function(docId) {
     if (confirm("Remove status?")) updateCustomerStatus(docId, "");
 };
 
-// ==========================================
-// 🔥 DELETE SINGLE USER
-// ==========================================
 window.deleteUser = async function(docId, userName) {
-    if (!confirm(`Delete "${userName}" and all their chats?`)) return;
+    if (!confirm(`Delete "${userName}"?`)) return;
     await deleteUserCompletely(docId, userName);
     if (activeDocId === docId) goBackToInbox();
     alert(`✅ Deleted "${userName}"`);
@@ -365,37 +352,15 @@ window.deleteUser = async function(docId, userName) {
 };
 
 // ==========================================
-// 🔥 CHECK INACTIVE USERS (48 hours)
-// ==========================================
-async function checkInactiveUsers() {
-    const now = Date.now();
-    const twoDaysAgo = now - (48 * 60 * 60 * 1000);
-    
-    try {
-        const snapshot = await db.ref('chats').once('value');
-        const chats = snapshot.val();
-        if (!chats) return;
-        
-        for (const [docId, data] of Object.entries(chats)) {
-            const lastUpdated = data.lastUpdated || 0;
-            if (lastUpdated < twoDaysAgo) {
-                const userName = getUserFriendlyName(docId);
-                await deleteUserCompletely(docId, userName);
-                console.log(`✅ Auto-deleted inactive user: ${userName}`);
-            }
-        }
-    } catch (error) {
-        console.error("Inactive check error:", error);
-    }
-}
-
-// ==========================================
-// 🔥 LOAD INBOX (Realtime Database)
+// 🔥 LOAD INBOX (FIXED)
 // ==========================================
 function loadInbox() {
     inboxView.style.display = 'flex';
     chatView.style.display = 'none';
-    if (activeChatListener) { activeChatListener(); activeChatListener = null; }
+    if (activeChatListener) { 
+        db.ref('chats/' + activeDocId + '/messages').off();
+        activeChatListener = null; 
+    }
     selectedUsers.clear();
     deleteSelectedBtn.disabled = true;
     deleteSelectedBtn.textContent = '🗑 Delete Selected';
@@ -429,19 +394,11 @@ function loadInbox() {
 
             const isSelected = selectedUsers.has(docId);
 
-            const itemDiv = document.createElement('div');
-            itemDiv.className = `user-item ${isSelected ? 'selected' : ''}`;
-            itemDiv.id = `user-item-${docId}`;
-            
-            // Count messages
             let msgCount = 0;
-            if (docData.messages) {
-                msgCount = Object.keys(docData.messages).length;
-            }
-            
-            // Count unread
             let unreadCount = 0;
             if (docData.messages) {
+                const msgKeys = Object.keys(docData.messages);
+                msgCount = msgKeys.length;
                 for (const [msgId, msg] of Object.entries(docData.messages)) {
                     if (msg.sender === 'user' && msg.status !== 'read') {
                         unreadCount++;
@@ -449,6 +406,10 @@ function loadInbox() {
                 }
             }
 
+            const itemDiv = document.createElement('div');
+            itemDiv.className = `user-item ${isSelected ? 'selected' : ''}`;
+            itemDiv.id = `user-item-${docId}`;
+            
             itemDiv.innerHTML = `
                 <div style="display:flex;align-items:center;gap:10px;width:100%;">
                     <input type="checkbox" class="select-checkbox" id="checkbox-${docId}" 
@@ -458,9 +419,9 @@ function loadInbox() {
                         <div class="user-avatar">🎓</div>
                         <div class="user-details">
                             <div class="user-phone">${userName}</div>
-                            <div class="user-subtitle" id="subtitle-${docId}">ID: ${docId.substring(0, 12)}... | Msgs: ${msgCount}</div>
+                            <div class="user-subtitle">ID: ${docId.substring(0, 12)}... | Msgs: ${msgCount}</div>
                         </div>
-                        ${unreadCount > 0 ? `<div id="badge-${docId}" class="unread-badge">${unreadCount}</div>` : ''}
+                        ${unreadCount > 0 ? `<div class="unread-badge">${unreadCount}</div>` : ''}
                     </div>
                 </div>
                 <div class="status-container">
@@ -479,7 +440,6 @@ function loadInbox() {
             `;
             userListDiv.appendChild(itemDiv);
 
-            // Auto-clear if > 70
             if (msgCount > 70) {
                 autoClearOldMessages(docId);
             }
@@ -493,7 +453,7 @@ function loadInbox() {
 window.goBackToInbox = function() { loadInbox(); };
 
 // ==========================================
-// 🔥 OPEN CHAT (Realtime Database)
+// 🔥 OPEN CHAT (FIXED - child_added listener)
 // ==========================================
 window.openChat = function(docId, userName) {
     activeDocId = docId;
@@ -502,14 +462,18 @@ window.openChat = function(docId, userName) {
     chatTitle.innerText = userName;
     chatBox.innerHTML = "";
 
-    if (activeChatListener) { activeChatListener(); activeChatListener = null; }
+    if (activeChatListener) { 
+        db.ref('chats/' + docId + '/messages').off();
+        activeChatListener = null; 
+    }
 
+    // 🔥 FIX: Use child_added instead of on('value')
     activeChatListener = db.ref('chats/' + docId + '/messages')
         .orderByChild('time_now')
         .on('child_added', (snapshot) => {
             const data = snapshot.val();
+            if (!data) return;
             
-            // Mark as read if from user
             if (data.sender === 'user' && data.status !== 'read') {
                 db.ref('chats/' + docId + '/messages/' + snapshot.key + '/status').set('read');
             }
@@ -579,7 +543,7 @@ document.getElementById('mediaLightbox').addEventListener('click', (e) => {
 });
 
 // ==========================================
-// 🔥 SEND MESSAGE (Realtime Database)
+// 🔥 SEND MESSAGE
 // ==========================================
 async function sendMessageToFirebase(type, content) {
     if (!activeDocId) return;
@@ -687,12 +651,6 @@ voiceBtn.addEventListener('click', async () => {
         voiceBtn.classList.remove('recording');
     }
 });
-
-// ==========================================
-// 🔥 RUN INACTIVE CHECK EVERY 6 HOURS
-// ==========================================
-setInterval(checkInactiveUsers, 6 * 60 * 60 * 1000);
-setTimeout(checkInactiveUsers, 5000);
 
 // ==========================================
 // 🔥 START
