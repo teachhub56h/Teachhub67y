@@ -270,13 +270,11 @@ async function actualSend(job) {
         };
 
         const newRef = db.ref('chats/' + myChatDocId + '/messages').push();
-        await newRef.set(msgData);
-        await db.ref('chats/' + myChatDocId + '/lastUpdated').set(timestamp);
-        await trimMessages(myChatDocId, MAX_MESSAGES_PER_CHAT);
 
-        // Swap the temporary bubble over to the real database key so the
-        // live listener recognizes it (and doesn't draw it a second time),
-        // and refresh media to the uploaded URL.
+        // Swap the temporary bubble over to the real database key
+        // IMMEDIATELY - before the write even goes out - so the live
+        // listener always finds it already on screen and never draws a
+        // second copy of the same message.
         const el = document.getElementById('msg-' + localId);
         if (el) {
             el.id = 'msg-' + newRef.key;
@@ -285,6 +283,11 @@ async function actualSend(job) {
                 if (mediaEl) mediaEl.src = fileUrl;
             }
         }
+
+        await newRef.set(msgData);
+        await db.ref('chats/' + myChatDocId + '/lastUpdated').set(timestamp);
+        await trimMessages(myChatDocId, MAX_MESSAGES_PER_CHAT);
+
         console.log('✅ Message saved!');
     } catch (error) {
         console.error('❌ Error:', error);
