@@ -103,7 +103,6 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 
 <script>
 // ==========================================
@@ -121,7 +120,6 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const auth = firebase.auth();
 
 // ==========================================
 // 🔥 CONFIG: keep only latest 30 messages per chat
@@ -153,42 +151,32 @@ async function trimMessages(chatId, maxCount) {
 const IMG_BB_KEY = 'c10f07a29b678cda424ef81b2e5f2302';
 
 // ==========================================
-// 🔥 STUDENT ID (comes from anonymous auth, not localStorage)
+// 🔥 STUDENT ID - generated locally, instantly, no login/network needed.
+// Stored in localStorage so the SAME chat continues after a refresh.
+// (Falls back to an in-memory id only in the rare case storage is
+// completely blocked - that one case can't survive a refresh, everything
+// else does.)
 // ==========================================
-let myChatDocId = null;
-let messagesLoaded = false;
-let authReady = false;
+function getOrCreateChatId() {
+    const KEY = 'teachhub_chat_id';
+    try {
+        let id = localStorage.getItem(KEY);
+        if (!id) {
+            id = (crypto.randomUUID ? crypto.randomUUID() : (Date.now().toString(36) + Math.random().toString(36).slice(2)));
+            localStorage.setItem(KEY, id);
+        }
+        return id;
+    } catch (e) {
+        console.warn('localStorage unavailable, using a temporary id for this session');
+        return (Date.now().toString(36) + Math.random().toString(36).slice(2));
+    }
+}
 
-// Messages the user sends before the connection is ready get queued here
-// and are flushed automatically the moment auth completes - the user
-// never has to wait or see any error.
-let pendingQueue = [];
+let myChatDocId = getOrCreateChatId();
 let localMsgCounter = 0;
 
-auth.onAuthStateChanged((user) => {
-    if (user) {
-        myChatDocId = user.uid;
-        authReady = true;
-        console.log('✅ Signed in. Chat ID:', myChatDocId);
-        if (!messagesLoaded) {
-            messagesLoaded = true;
-            loadMessages();
-        }
-        flushPendingQueue();
-    }
-});
-
-auth.signInAnonymously().catch((error) => {
-    console.error('❌ Anonymous sign-in failed:', error);
-    // Stay silent for the user - anything they've already typed and sent
-    // stays queued and will go out automatically once a connection is made.
-});
-
-function flushPendingQueue() {
-    if (!authReady || pendingQueue.length === 0) return;
-    const jobs = pendingQueue.splice(0, pendingQueue.length);
-    jobs.forEach(job => actualSend(job));
-}
+console.log('Chat ID ready instantly:', myChatDocId);
+loadMessages();
 
 // ==========================================
 // 🔥 UPLOAD TO IMGBB
@@ -218,19 +206,14 @@ const toBase64 = file => new Promise((resolve, reject) => {
 // 🔥 SEND MESSAGE
 // ==========================================
 // The user never waits: the message is drawn on screen immediately
-// (renderOptimistic), and the real save to Firebase (actualSend) happens
-// right away if we're already connected, or is queued and auto-sent the
-// moment the connection is ready.
+// (renderOptimistic), and actualSend fires the real Firebase write right
+// away - no login step in front of it anymore. If the network is briefly
+// down, Firebase's own client queues the write internally and sends it
+// the instant a connection is available, so nothing is lost.
 async function sendMessage(type, content) {
     const localId = 'local-' + (++localMsgCounter) + '-' + Date.now();
     renderOptimistic(type, content, localId);
-
-    const job = { localId, type, content };
-    if (authReady) {
-        actualSend(job);
-    } else {
-        pendingQueue.push(job);
-    }
+    actualSend({ localId, type, content });
 }
 
 function renderOptimistic(type, content, localId) {
