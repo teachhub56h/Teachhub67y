@@ -80,11 +80,11 @@
     <div class="chat-input-area">
         <div class="input-container">
             <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
-            <button class="icon-btn" id="attachBtn" onclick="document.getElementById('mediaInput').click()" style="margin-right: 8px;" disabled>📎</button>
-            <input type="text" id="msgInput" placeholder="Connecting..." disabled>
-            <button class="icon-btn" id="voiceBtn" disabled>🎙️</button>
+            <button class="icon-btn" id="attachBtn" onclick="document.getElementById('mediaInput').click()" style="margin-right: 8px;">📎</button>
+            <input type="text" id="msgInput" placeholder="Type a message...">
+            <button class="icon-btn" id="voiceBtn">🎙️</button>
         </div>
-        <button class="send-btn" id="sendBtn" disabled>➤</button>
+        <button class="send-btn" id="sendBtn">➤</button>
     </div>
 </div>
 
@@ -157,59 +157,38 @@ const IMG_BB_KEY = 'c10f07a29b678cda424ef81b2e5f2302';
 // ==========================================
 let myChatDocId = null;
 let messagesLoaded = false;
+let authReady = false;
 
-// --- UI elements used to lock the chat until Firebase auth is ready ---
-const msgInputEl = document.getElementById('msgInput');
-const sendBtnEl = document.getElementById('sendBtn');
-const voiceBtnEl = document.getElementById('voiceBtn');
-const attachBtnEl = document.getElementById('attachBtn');
-let authReadyTimeout = null;
-
-function lockChatInput() {
-    msgInputEl.disabled = true;
-    sendBtnEl.disabled = true;
-    voiceBtnEl.disabled = true;
-    attachBtnEl.disabled = true;
-    msgInputEl.placeholder = 'Connecting...';
-}
-
-function unlockChatInput() {
-    msgInputEl.disabled = false;
-    sendBtnEl.disabled = false;
-    voiceBtnEl.disabled = false;
-    attachBtnEl.disabled = false;
-    msgInputEl.placeholder = 'Type a message...';
-    if (authReadyTimeout) {
-        clearTimeout(authReadyTimeout);
-        authReadyTimeout = null;
-    }
-}
-
-// If connecting takes unusually long (bad network / anonymous auth not
-// enabled in Firebase), let the student know instead of leaving them
-// stuck on a silently disabled box forever.
-authReadyTimeout = setTimeout(() => {
-    if (!myChatDocId) {
-        msgInputEl.placeholder = 'Connection slow, please wait...';
-    }
-}, 8000);
+// Messages the user sends before the connection is ready get queued here
+// and are flushed automatically the moment auth completes - the user
+// never has to wait or see any error.
+let pendingQueue = [];
+let localMsgCounter = 0;
 
 auth.onAuthStateChanged((user) => {
     if (user) {
         myChatDocId = user.uid;
+        authReady = true;
         console.log('✅ Signed in. Chat ID:', myChatDocId);
         if (!messagesLoaded) {
             messagesLoaded = true;
             loadMessages();
         }
-        unlockChatInput();
+        flushPendingQueue();
     }
 });
 
 auth.signInAnonymously().catch((error) => {
     console.error('❌ Anonymous sign-in failed:', error);
-    msgInputEl.placeholder = 'Connection failed - reload the page';
+    // Stay silent for the user - anything they've already typed and sent
+    // stays queued and will go out automatically once a connection is made.
 });
+
+function flushPendingQueue() {
+    if (!authReady || pendingQueue.length === 0) return;
+    const jobs = pendingQueue.splice(0, pendingQueue.length);
+    jobs.forEach(job => actualSend(job));
+}
 
 // ==========================================
 // 🔥 UPLOAD TO IMGBB
@@ -238,52 +217,105 @@ const toBase64 = file => new Promise((resolve, reject) => {
 // ==========================================
 // 🔥 SEND MESSAGE
 // ==========================================
+// The user never waits: the message is drawn on screen immediately
+// (renderOptimistic), and the real save to Firebase (actualSend) happens
+// right away if we're already connected, or is queued and auto-sent the
+// moment the connection is ready.
 async function sendMessage(type, content) {
-    if (!myChatDocId) {
-        // Input is disabled until auth is ready, so this should not normally
-        // trigger from a user tap - but guard against it just in case.
-        return;
-    }
+    const localId = 'local-' + (++localMsgCounter) + '-' + Date.now();
+    renderOptimistic(type, content, localId);
 
-    let fileUrl = '';
-    let messageText = content;
-    
-    if (type === 'text') {
-        messageText = content;
-    } else if (type === 'audio') {
-        fileUrl = content;
-        messageText = 'Sent a voice note';
+    const job = { localId, type, content };
+    if (authReady) {
+        actualSend(job);
     } else {
-        const url = await uploadToImgBB(content);
-        if (!url) {
-            alert('❌ Upload failed!');
-            return;
-        }
-        fileUrl = url;
-        messageText = `Sent a ${type}`;
+        pendingQueue.push(job);
     }
-    
-    const timestamp = Date.now();
-    const msgData = {
+}
+
+function renderOptimistic(type, content, localId) {
+    let previewUrl = '';
+    if (type === 'image' || type === 'video') {
+        previewUrl = URL.createObjectURL(content);
+    } else if (type === 'audio') {
+        previewUrl = content; // already a playable base64 data URL
+    }
+    const data = {
         sender: 'user',
-        type: type,
-        message_text: messageText,
-        file_url: fileUrl,
-        time_now: timestamp,
+        type,
+        message_text: type === 'text' ? content : (type === 'audio' ? 'Sent a voice note' : `Sent a ${type}`),
+        file_url: previewUrl,
+        time_now: Date.now(),
         time_label: new Date().toLocaleTimeString(),
         status: 'sent'
     };
-    
+    renderMessage(localId, data);
+    const chatBox = document.getElementById('chatBox');
+    chatBox.scrollTop = chatBox.scrollHeight;
+}
+
+async function actualSend(job) {
+    const { localId, type, content } = job;
+    let fileUrl = '';
+    let messageText = content;
+
     try {
+        if (type === 'text') {
+            messageText = content;
+        } else if (type === 'audio') {
+            fileUrl = content;
+            messageText = 'Sent a voice note';
+        } else {
+            const url = await uploadToImgBB(content);
+            if (!url) {
+                markMessageFailed(job);
+                return;
+            }
+            fileUrl = url;
+            messageText = `Sent a ${type}`;
+        }
+
+        const timestamp = Date.now();
+        const msgData = {
+            sender: 'user',
+            type: type,
+            message_text: messageText,
+            file_url: fileUrl,
+            time_now: timestamp,
+            time_label: new Date().toLocaleTimeString(),
+            status: 'sent'
+        };
+
         const newRef = db.ref('chats/' + myChatDocId + '/messages').push();
         await newRef.set(msgData);
         await db.ref('chats/' + myChatDocId + '/lastUpdated').set(timestamp);
         await trimMessages(myChatDocId, MAX_MESSAGES_PER_CHAT);
+
+        // Swap the temporary bubble over to the real database key so the
+        // live listener recognizes it (and doesn't draw it a second time),
+        // and refresh media to the uploaded URL.
+        const el = document.getElementById('msg-' + localId);
+        if (el) {
+            el.id = 'msg-' + newRef.key;
+            if ((type === 'image' || type === 'video') && fileUrl) {
+                const mediaEl = el.querySelector('img, video');
+                if (mediaEl) mediaEl.src = fileUrl;
+            }
+        }
         console.log('✅ Message saved!');
     } catch (error) {
         console.error('❌ Error:', error);
-        alert('❌ Error: ' + error.message);
+        markMessageFailed(job);
     }
+}
+
+function markMessageFailed(job) {
+    const el = document.getElementById('msg-' + job.localId);
+    if (el) {
+        const meta = el.querySelector('.msg-meta');
+        if (meta) meta.innerHTML = '<span style="color:#e53935;">⚠ Retrying...</span>';
+    }
+    setTimeout(() => actualSend(job), 4000);
 }
 
 // ==========================================
@@ -297,6 +329,7 @@ function loadMessages() {
         .on('child_added', (snapshot) => {
             const data = snapshot.val();
             if (!data) return;
+            if (document.getElementById('msg-' + snapshot.key)) return; // already drawn optimistically
             renderMessage(snapshot.key, data);
             chatBox.scrollTop = chatBox.scrollHeight;
         });
