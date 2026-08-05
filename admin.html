@@ -352,27 +352,31 @@ window.deleteUser = async function(docId, userName) {
 };
 
 // ==========================================
-// 🔥 LOAD INBOX (FIXED)
+// 🔥 LOAD INBOX (FIXED - with timeout)
 // ==========================================
 function loadInbox() {
     inboxView.style.display = 'flex';
     chatView.style.display = 'none';
+    
+    // Clean up old listeners
     if (activeChatListener) { 
         db.ref('chats/' + activeDocId + '/messages').off();
         activeChatListener = null; 
     }
+    
     selectedUsers.clear();
     deleteSelectedBtn.disabled = true;
     deleteSelectedBtn.textContent = '🗑 Delete Selected';
 
-    userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>Loading...</div>";
+    // 🔥 FIX: Show "No users" immediately, then listen for changes
+    userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>👀 Waiting for users...</div>";
 
+    // 🔥 Listen for changes on 'chats'
     db.ref('chats').on('value', (snapshot) => {
-        userListDiv.innerHTML = "";
         const chats = snapshot.val();
         
         if (!chats) {
-            userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>No users found.</div>";
+            userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>📭 No users yet. Share your link!</div>";
             return;
         }
 
@@ -380,6 +384,8 @@ function loadInbox() {
         const sortedChats = Object.entries(chats).sort((a, b) => {
             return (b[1].lastUpdated || 0) - (a[1].lastUpdated || 0);
         });
+
+        userListDiv.innerHTML = "";
 
         for (const [docId, docData] of sortedChats) {
             const userName = getUserFriendlyName(docId);
@@ -453,7 +459,7 @@ function loadInbox() {
 window.goBackToInbox = function() { loadInbox(); };
 
 // ==========================================
-// 🔥 OPEN CHAT (FIXED - child_added listener)
+// 🔥 OPEN CHAT (FIXED)
 // ==========================================
 window.openChat = function(docId, userName) {
     activeDocId = docId;
@@ -467,7 +473,7 @@ window.openChat = function(docId, userName) {
         activeChatListener = null; 
     }
 
-    // 🔥 FIX: Use child_added instead of on('value')
+    // 🔥 Listen for new messages only
     activeChatListener = db.ref('chats/' + docId + '/messages')
         .orderByChild('time_now')
         .on('child_added', (snapshot) => {
@@ -476,6 +482,7 @@ window.openChat = function(docId, userName) {
             
             if (data.sender === 'user' && data.status !== 'read') {
                 db.ref('chats/' + docId + '/messages/' + snapshot.key + '/status').set('read');
+                msgSound.play().catch(() => {});
             }
             
             renderMessage(snapshot.key, data);
