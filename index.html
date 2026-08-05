@@ -54,9 +54,12 @@
         .chat-input-area { padding: 10px; background: #e4e9ec; display: flex; align-items: center; gap: 8px; }
         .input-container { flex: 1; background: #fff; border-radius: 24px; display: flex; align-items: center; padding: 2px 12px; }
         .input-container input[type="text"] { flex: 1; border: none; outline: none; padding: 10px 4px; font-size: 15px; background: transparent; }
+        .input-container input[type="text"]:disabled { background: transparent; color: #9aa5ab; }
         .icon-btn { background: none; border: none; font-size: 20px; cursor: pointer; color: #54656f; display: flex; align-items: center; justify-content: center; }
+        .icon-btn:disabled { opacity: 0.4; cursor: default; }
         .icon-btn.recording { color: #ea0038; animation: blink 1s infinite; }
         .send-btn { background: #1B4F72; color: white; border: none; width: 45px; height: 45px; border-radius: 50%; cursor: pointer; font-size: 18px; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 2px rgba(0,0,0,0.2); }
+        .send-btn:disabled { background: #8fa7b9; cursor: default; box-shadow: none; }
         @keyframes blink { 0% { opacity: 1; } 50% { opacity: 0.4; } 100% { opacity: 1; } }
     </style>
 </head>
@@ -77,11 +80,11 @@
     <div class="chat-input-area">
         <div class="input-container">
             <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
-            <button class="icon-btn" onclick="document.getElementById('mediaInput').click()" style="margin-right: 8px;">📎</button>
-            <input type="text" id="msgInput" placeholder="Type a message...">
-            <button class="icon-btn" id="voiceBtn">🎙️</button>
+            <button class="icon-btn" id="attachBtn" onclick="document.getElementById('mediaInput').click()" style="margin-right: 8px;" disabled>📎</button>
+            <input type="text" id="msgInput" placeholder="Connecting..." disabled>
+            <button class="icon-btn" id="voiceBtn" disabled>🎙️</button>
         </div>
-        <button class="send-btn" id="sendBtn">➤</button>
+        <button class="send-btn" id="sendBtn" disabled>➤</button>
     </div>
 </div>
 
@@ -150,10 +153,46 @@ async function trimMessages(chatId, maxCount) {
 const IMG_BB_KEY = 'c10f07a29b678cda424ef81b2e5f2302';
 
 // ==========================================
-// 🔥 STUDENT ID (now comes from anonymous auth, not localStorage)
+// 🔥 STUDENT ID (comes from anonymous auth, not localStorage)
 // ==========================================
 let myChatDocId = null;
 let messagesLoaded = false;
+
+// --- UI elements used to lock the chat until Firebase auth is ready ---
+const msgInputEl = document.getElementById('msgInput');
+const sendBtnEl = document.getElementById('sendBtn');
+const voiceBtnEl = document.getElementById('voiceBtn');
+const attachBtnEl = document.getElementById('attachBtn');
+let authReadyTimeout = null;
+
+function lockChatInput() {
+    msgInputEl.disabled = true;
+    sendBtnEl.disabled = true;
+    voiceBtnEl.disabled = true;
+    attachBtnEl.disabled = true;
+    msgInputEl.placeholder = 'Connecting...';
+}
+
+function unlockChatInput() {
+    msgInputEl.disabled = false;
+    sendBtnEl.disabled = false;
+    voiceBtnEl.disabled = false;
+    attachBtnEl.disabled = false;
+    msgInputEl.placeholder = 'Type a message...';
+    if (authReadyTimeout) {
+        clearTimeout(authReadyTimeout);
+        authReadyTimeout = null;
+    }
+}
+
+// If connecting takes unusually long (bad network / anonymous auth not
+// enabled in Firebase), let the student know instead of leaving them
+// stuck on a silently disabled box forever.
+authReadyTimeout = setTimeout(() => {
+    if (!myChatDocId) {
+        msgInputEl.placeholder = 'Connection slow, please wait...';
+    }
+}, 8000);
 
 auth.onAuthStateChanged((user) => {
     if (user) {
@@ -163,12 +202,13 @@ auth.onAuthStateChanged((user) => {
             messagesLoaded = true;
             loadMessages();
         }
+        unlockChatInput();
     }
 });
 
 auth.signInAnonymously().catch((error) => {
     console.error('❌ Anonymous sign-in failed:', error);
-    alert('Could not connect. Please check your internet connection and reload.');
+    msgInputEl.placeholder = 'Connection failed - reload the page';
 });
 
 // ==========================================
@@ -200,7 +240,8 @@ const toBase64 = file => new Promise((resolve, reject) => {
 // ==========================================
 async function sendMessage(type, content) {
     if (!myChatDocId) {
-        alert('Still connecting, please wait a second and try again.');
+        // Input is disabled until auth is ready, so this should not normally
+        // trigger from a user tap - but guard against it just in case.
         return;
     }
 
