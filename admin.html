@@ -352,15 +352,16 @@ window.deleteUser = async function(docId, userName) {
 };
 
 // ==========================================
-// 🔥 LOAD INBOX (FIXED - with timeout)
+// 🔥 LOAD INBOX (SIMPLE & WORKING)
 // ==========================================
 function loadInbox() {
     inboxView.style.display = 'flex';
     chatView.style.display = 'none';
     
-    // Clean up old listeners
     if (activeChatListener) { 
-        db.ref('chats/' + activeDocId + '/messages').off();
+        if (activeDocId) {
+            db.ref('chats/' + activeDocId + '/messages').off();
+        }
         activeChatListener = null; 
     }
     
@@ -368,8 +369,7 @@ function loadInbox() {
     deleteSelectedBtn.disabled = true;
     deleteSelectedBtn.textContent = '🗑 Delete Selected';
 
-    // 🔥 FIX: Show "No users" immediately, then listen for changes
-    userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>👀 Waiting for users...</div>";
+    userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>⏳ Loading users...</div>";
 
     // 🔥 Listen for changes on 'chats'
     db.ref('chats').on('value', (snapshot) => {
@@ -459,7 +459,7 @@ function loadInbox() {
 window.goBackToInbox = function() { loadInbox(); };
 
 // ==========================================
-// 🔥 OPEN CHAT (FIXED)
+// 🔥 OPEN CHAT
 // ==========================================
 window.openChat = function(docId, userName) {
     activeDocId = docId;
@@ -473,7 +473,7 @@ window.openChat = function(docId, userName) {
         activeChatListener = null; 
     }
 
-    // 🔥 Listen for new messages only
+    // 🔥 Listen for new messages
     activeChatListener = db.ref('chats/' + docId + '/messages')
         .orderByChild('time_now')
         .on('child_added', (snapshot) => {
