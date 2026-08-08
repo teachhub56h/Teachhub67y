@@ -153,7 +153,7 @@
 
 <script>
 // ==========================================
-// 🔥 FIREBASE CONFIG - REALTIME DATABASE
+// 🔥 FIREBASE CONFIG - REALTIME DATABASE (OLD PROJECT: newpro-affc8)
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDbjIDUk4bnJuVfSQZua61dyiDsjjC6uiU",
@@ -521,6 +521,11 @@ function loadInbox() {
             `;
             userListDiv.appendChild(itemDiv);
         }
+    }, (error) => {
+        // If this ever spins forever again, the exact reason now shows
+        // right on screen instead of hanging silently.
+        userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#c62828;'>❌ Error loading users: " + error.code + " - " + error.message + "</div>";
+        console.error('loadInbox permission error:', error);
     });
 }
 
@@ -562,6 +567,14 @@ window.openChat = function(docId, userName) {
         .on('child_removed', (snapshot) => {
             removeMessageFromUI(snapshot.key);
         });
+
+    // Live tick updates: the instant the student's app marks a message
+    // as 'read' (because they saw it), this listener flips the admin's
+    // own tick to blue right away - no refresh needed.
+    db.ref('chats/' + docId + '/messages')
+        .on('child_changed', (snapshot) => {
+            updateMessageTick(snapshot.key, snapshot.val());
+        });
 };
 
 // ==========================================
@@ -570,6 +583,21 @@ window.openChat = function(docId, userName) {
 function removeMessageFromUI(msgId) {
     const el = document.getElementById('msg-' + msgId);
     if (el) el.remove();
+}
+
+function updateMessageTick(msgId, data) {
+    if (!data || data.sender !== 'admin') return;
+    const el = document.getElementById('msg-' + msgId);
+    if (!el) return;
+    let tickHtml = '';
+    if (data.status === 'sent') tickHtml = '<span class="tick sent">✓</span>';
+    else if (data.status === 'delivered') tickHtml = '<span class="tick delivered">✓✓</span>';
+    else if (data.status === 'read') tickHtml = '<span class="tick read">✓✓</span>';
+    const meta = el.querySelector('.msg-meta');
+    if (meta) {
+        const timeSpan = meta.querySelector('span');
+        meta.innerHTML = (timeSpan ? timeSpan.outerHTML : '') + ' ' + tickHtml;
+    }
 }
 
 function renderMessage(msgId, data) {
