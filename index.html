@@ -139,10 +139,26 @@ async function trimMessages(chatId, maxCount) {
             const updates = {};
             oldestSnap.forEach(child => { updates[child.key] = null; });
             await db.ref('chats/' + chatId + '/messages').update(updates);
+            // Keep the lightweight summary's counter roughly in sync with
+            // what's actually still stored.
+            await db.ref('chatSummary/' + chatId + '/msgCount').transaction(c => Math.max((c || 0) - excess, 0));
         }
     } catch (e) {
         console.error('trimMessages error:', e);
     }
+}
+
+// ==========================================
+// 🔥 CHAT SUMMARY (bandwidth optimization)
+// ==========================================
+// The admin inbox used to listen to the entire "chats" tree - meaning
+// every message (including big voice notes) of every student was
+// re-downloaded on every single update anywhere. Instead, we keep a tiny
+// "chatSummary/{id}" record per student with just what the inbox list
+// needs to display. The admin only ever downloads the full message list
+// for ONE chat at a time, when they actually open it.
+function bumpSummaryCount(field, delta) {
+    return db.ref('chatSummary/' + myChatDocId + '/' + field).transaction(c => (c || 0) + delta);
 }
 
 // ==========================================
@@ -286,6 +302,13 @@ async function actualSend(job) {
 
         await newRef.set(msgData);
         await db.ref('chats/' + myChatDocId + '/lastUpdated').set(timestamp);
+        await db.ref('chatSummary/' + myChatDocId).update({
+            lastUpdated: timestamp,
+            lastMessageText: messageText,
+            lastSender: 'user'
+        });
+        bumpSummaryCount('msgCount', 1);
+        bumpSummaryCount('unreadCount', 1); // admin hasn't seen this one yet
         await trimMessages(myChatDocId, MAX_MESSAGES_PER_CHAT);
 
         console.log('✅ Message saved!');
@@ -318,6 +341,12 @@ function loadMessages() {
             if (document.getElementById('msg-' + snapshot.key)) return; // already drawn optimistically
             renderMessage(snapshot.key, data);
             chatBox.scrollTop = chatBox.scrollHeight;
+
+            // The instant an admin reply is shown on screen, mark it read
+            // so the admin sees the blue double-tick ("seen") right away.
+            if (data.sender === 'admin' && data.status !== 'read') {
+                db.ref('chats/' + myChatDocId + '/messages/' + snapshot.key + '/status').set('read');
+            }
         });
 
     db.ref('chats/' + myChatDocId + '/messages')
