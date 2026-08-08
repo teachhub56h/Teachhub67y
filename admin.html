@@ -190,6 +190,7 @@ async function trimMessages(chatId, maxCount) {
             const updates = {};
             oldestSnap.forEach(child => { updates[child.key] = null; });
             await db.ref('chats/' + chatId + '/messages').update(updates);
+            await db.ref('chatSummary/' + chatId + '/msgCount').transaction(c => Math.max((c || 0) - excess, 0));
         }
     } catch (e) {
         console.error('trimMessages error:', e);
@@ -197,14 +198,17 @@ async function trimMessages(chatId, maxCount) {
 }
 
 // Deletes any chat whose lastUpdated is older than INACTIVITY_LIMIT_MS.
-// Runs once on login, then every 5 minutes while the admin panel stays open.
+// Runs once on login, then every 15 minutes while the admin panel stays open.
+// FIX: reads only the tiny "chatSummary" node now (see loadInbox below),
+// not the full chats tree - this alone was responsible for a large chunk
+// of the repeated background downloads.
 async function checkStaleUsers() {
     try {
-        const snap = await db.ref('chats').once('value');
-        const chats = snap.val();
-        if (!chats) return;
+        const snap = await db.ref('chatSummary').once('value');
+        const summaries = snap.val();
+        if (!summaries) return;
         const now = Date.now();
-        for (const [docId, docData] of Object.entries(chats)) {
+        for (const [docId, docData] of Object.entries(summaries)) {
             const last = docData.lastUpdated || 0;
             if (now - last > INACTIVITY_LIMIT_MS) {
                 await deleteUserCompletely(docId, getUserFriendlyName(docId));
@@ -246,7 +250,7 @@ auth.onAuthStateChanged((user) => {
         inboxView.style.display = 'flex';
         loadInbox();
         checkStaleUsers();
-        setInterval(checkStaleUsers, 5 * 60 * 1000);
+        setInterval(checkStaleUsers, 15 * 60 * 1000);
     } else {
         loginView.style.display = 'flex';
         inboxView.style.display = 'none';
@@ -323,8 +327,8 @@ const toBase64 = file => new Promise((resolve, reject) => {
 // ==========================================
 async function deleteUserCompletely(docId, userName) {
     try {
-        await db.ref('chats/' + docId + '/messages').remove();
         await db.ref('chats/' + docId).remove();
+        await db.ref('chatSummary/' + docId).remove();
         
         let savedNames = localStorage.getItem('chatUserNames');
         if (savedNames) {
@@ -346,6 +350,7 @@ async function deleteAllUsers() {
     if (!confirm('⚠️ Delete ALL users and ALL messages?')) return;
     try {
         await db.ref('chats').remove();
+        await db.ref('chatSummary').remove();
         localStorage.removeItem('chatUserNames');
         alert('✅ All deleted!');
         loadInbox();
@@ -400,6 +405,7 @@ async function deleteSelectedUsers() {
 async function updateCustomerStatus(docId, newStatus) {
     try {
         await db.ref('chats/' + docId + '/statusTag').set(newStatus);
+        await db.ref('chatSummary/' + docId + '/statusTag').set(newStatus);
     } catch (error) {
         console.error("Error:", error);
     }
@@ -448,7 +454,13 @@ function loadInbox() {
 
     userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>⏳ Loading users...</div>";
 
-    db.ref('chats').on('value', (snapshot) => {
+    // FIX (slow open + high download): this used to be db.ref('chats')
+    // which downloads EVERY message of EVERY student every single time
+    // anything changes anywhere. Now it only reads "chatSummary" - a tiny
+    // record per student (name, last message preview, counts). The full
+    // conversation for a student is only downloaded when you actually
+    // open their chat.
+    db.ref('chatSummary').on('value', (snapshot) => {
         const chats = snapshot.val();
         
         if (!chats) {
@@ -474,18 +486,8 @@ function loadInbox() {
             else if (activeStatus !== "") tagClass += " custom";
 
             const isSelected = selectedUsers.has(docId);
-
-            let msgCount = 0;
-            let unreadCount = 0;
-            if (docData.messages) {
-                const msgKeys = Object.keys(docData.messages);
-                msgCount = msgKeys.length;
-                for (const [msgId, msg] of Object.entries(docData.messages)) {
-                    if (msg.sender === 'user' && msg.status !== 'read') {
-                        unreadCount++;
-                    }
-                }
-            }
+            const msgCount = docData.msgCount || 0;
+            const unreadCount = docData.unreadCount || 0;
 
             const itemDiv = document.createElement('div');
             itemDiv.className = `user-item ${isSelected ? 'selected' : ''}`;
@@ -500,7 +502,7 @@ function loadInbox() {
                         <div class="user-avatar">🎓</div>
                         <div class="user-details">
                             <div class="user-phone">${userName}</div>
-                            <div class="user-subtitle">ID: ${docId.substring(0, 12)}... | Msgs: ${msgCount}</div>
+                            <div class="user-subtitle">${docData.lastMessageText ? docData.lastMessageText : ('ID: ' + docId.substring(0, 12) + '... | Msgs: ' + msgCount)}</div>
                         </div>
                         ${unreadCount > 0 ? `<div class="unread-badge">${unreadCount}</div>` : ''}
                     </div>
@@ -543,6 +545,10 @@ window.openChat = function(docId, userName) {
     chatView.style.display = 'flex';
     chatTitle.innerText = userName;
     chatBox.innerHTML = "";
+
+    // Opening the chat means the admin has now seen everything from this
+    // student up to this point - clear their unread badge immediately.
+    db.ref('chatSummary/' + docId + '/unreadCount').set(0);
 
     if (activeChatListener) { 
         db.ref('chats/' + docId + '/messages').off();
@@ -694,6 +700,12 @@ async function sendMessageToFirebase(type, content) {
     
     await db.ref('chats/' + activeDocId + '/messages').push(msgData);
     await db.ref('chats/' + activeDocId + '/lastUpdated').set(timestamp);
+    await db.ref('chatSummary/' + activeDocId).update({
+        lastUpdated: timestamp,
+        lastMessageText: 'You: ' + messageText,
+        lastSender: 'admin'
+    });
+    await db.ref('chatSummary/' + activeDocId + '/msgCount').transaction(c => (c || 0) + 1);
     await trimMessages(activeDocId, MAX_MESSAGES_PER_CHAT);
 }
 
