@@ -10,7 +10,6 @@
         body { background: #eef2f5; display: flex; justify-content: center; align-items: center; height: 100vh; }
         .chat-container { width: 100%; max-width: 450px; height: 100vh; background: #f5f7f8; display: flex; flex-direction: column; box-shadow: 0 4px 15px rgba(0,0,0,0.15); overflow: hidden; }
 
-        /* LOGIN SCREEN */
         #login-view { display: flex; flex-direction: column; justify-content: center; align-items: center; height: 100%; background: #1B4F72; padding: 30px; }
         #login-view h2 { color: white; margin-bottom: 24px; font-size: 20px; }
         #login-view input { width: 100%; padding: 12px 14px; margin-bottom: 12px; border: none; border-radius: 8px; font-size: 15px; outline: none; }
@@ -26,6 +25,8 @@
         .btn-delete-selected:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-delete-all { background: #c62828; color: white; }
         .btn-logout { background: #6b7a85; color: white; }
+        .btn-privacy { background: #F4B400; color: #1B4F72; }
+        .btn-privacy.off { background: #6b7a85; color: white; }
 
         .user-list { flex: 1; overflow-y: auto; padding: 8px 0; background: #ffffff; }
         .user-item { display: flex; flex-direction: column; padding: 12px 16px; border-bottom: 1px solid #f0f0f0; transition: background 0.2s; position: relative; }
@@ -36,7 +37,7 @@
         .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #1B4F72; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; flex-shrink: 0; }
         .user-details { flex: 1; min-width: 0; }
         .user-phone { font-size: 15px; font-weight: 600; color: #16232e; }
-        .user-subtitle { font-size: 12px; color: #6b7a85; margin-top: 2px; }
+        .user-subtitle { font-size: 12px; color: #6b7a85; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         .status-container { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e1e1e1; flex-wrap: wrap; }
         .status-tag { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 12px; color: white; background-color: #8696a0; }
@@ -60,7 +61,8 @@
         .profile-img { width: 40px; height: 40px; border-radius: 12px; background: #ffffff; object-fit: contain; padding: 3px; }
         .header-info { flex: 1; }
         .header-info .name { font-size: 16px; font-weight: 600; }
-        .header-info .status { font-size: 12px; color: #a9c6dd; }
+        .header-info .status { font-size: 12px; color: #a9c6dd; transition: color 0.2s; }
+        .header-info .status.active-indicator { color: #F4B400; font-weight: 600; }
         .chat-messages { flex: 1; padding: 15px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; background-color: #eef2f5; }
 
         .msg { max-width: 80%; padding: 6px 7px 6px 9px; border-radius: 8px; font-size: 14.5px; line-height: 1.4; word-wrap: break-word; position: relative; box-shadow: 0 1px 1px rgba(0,0,0,0.1); display: flex; flex-direction: column; gap: 5px; }
@@ -92,7 +94,6 @@
 <body>
 <div class="chat-container">
 
-    <!-- LOGIN SCREEN -->
     <div id="login-view">
         <h2>🔒 Teach Hub Admin Login</h2>
         <input type="email" id="loginEmail" placeholder="Admin email">
@@ -106,6 +107,7 @@
             <img src="logo-192.png" alt="Teach Hub">
             <span>Teach Hub - Staff Inbox</span>
             <div class="header-actions">
+                <button class="btn-privacy" id="privacyToggleBtn" onclick="togglePrivacy()">👁 Status: ON</button>
                 <button class="btn-delete-selected" id="deleteSelectedBtn" disabled onclick="deleteSelectedUsers()">
                     🗑 Delete Selected
                 </button>
@@ -126,7 +128,7 @@
             <img class="profile-img" src="logo-192.png" alt="Profile">
             <div class="header-info">
                 <div class="name" id="chatTitle">Support Panel</div>
-                <div class="status">active chat session</div>
+                <div class="status" id="chatStatusLine">active chat session</div>
             </div>
         </div>
         <div class="chat-messages" id="chatBox"></div>
@@ -150,10 +152,11 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-storage-compat.js"></script>
 
 <script>
 // ==========================================
-// 🔥 FIREBASE CONFIG - REALTIME DATABASE (OLD PROJECT: newpro-affc8)
+// 🔥 FIREBASE CONFIG (newpro-affc8)
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDbjIDUk4bnJuVfSQZua61dyiDsjjC6uiU",
@@ -162,21 +165,59 @@ const firebaseConfig = {
     projectId: "newpro-affc8",
     storageBucket: "newpro-affc8.firebasestorage.app",
     messagingSenderId: "1080341611919",
-    appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
+    appId: "1:1080341611919:web:373d7fa13901e4b41c77fa",
+    measurementId: "G-CV3NDNC8TC"
 };
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
+const storage = firebase.storage();
 
 // ==========================================
-// 🔥 CONFIG: chat message limit + inactivity auto-delete
+// 🔥 CONFIG
 // ==========================================
 const MAX_MESSAGES_PER_CHAT = 30;
 const INACTIVITY_LIMIT_MS = 48 * 60 * 60 * 1000; // 48 hours
+const TYPING_TIMEOUT_MS = 2500;
 
-// Keeps only the latest MAX_MESSAGES_PER_CHAT messages in a chat.
-// Runs after every message is sent (by admin or student).
+// ==========================================
+// 🔥 MEDIA STORAGE (images/videos/audio all live here now - no more
+// third-party ImgBB. A message's file just holds a small link; the
+// real file lives at media/{chatId}/... and gets deleted automatically
+// whenever that message is trimmed, or the whole chat is deleted.)
+// ==========================================
+async function uploadMediaToStorage(file, chatId, kind) {
+    let ext = 'bin';
+    if (kind === 'audio') ext = 'webm';
+    else if (file.name && file.name.includes('.')) ext = file.name.split('.').pop();
+    else if (kind === 'image') ext = 'jpg';
+    else if (kind === 'video') ext = 'mp4';
+    const filename = 'media/' + chatId + '/' + Date.now() + '_' + kind + '.' + ext;
+    const ref = storage.ref().child(filename);
+    await ref.put(file);
+    return await ref.getDownloadURL();
+}
+
+function deleteMediaByUrl(url) {
+    if (!url) return;
+    try {
+        storage.refFromURL(url).delete().catch(() => {});
+    } catch (e) { /* not a storage URL, ignore */ }
+}
+
+async function deleteChatMedia(chatId) {
+    try {
+        const folderRef = storage.ref('media/' + chatId);
+        const list = await folderRef.listAll();
+        await Promise.all(list.items.map(item => item.delete().catch(() => {})));
+    } catch (e) {
+        console.error('deleteChatMedia error:', e);
+    }
+}
+
+// Keeps only the latest MAX_MESSAGES_PER_CHAT messages, and deletes the
+// dropped messages' media files from Storage too.
 async function trimMessages(chatId, maxCount) {
     try {
         const snap = await db.ref('chats/' + chatId + '/messages').once('value');
@@ -188,20 +229,21 @@ async function trimMessages(chatId, maxCount) {
                 .limitToFirst(excess)
                 .once('value');
             const updates = {};
-            oldestSnap.forEach(child => { updates[child.key] = null; });
+            const urlsToDelete = [];
+            oldestSnap.forEach(child => {
+                updates[child.key] = null;
+                const val = child.val();
+                if (val && val.type !== 'text' && val.file_url) urlsToDelete.push(val.file_url);
+            });
             await db.ref('chats/' + chatId + '/messages').update(updates);
             await db.ref('chatSummary/' + chatId + '/msgCount').transaction(c => Math.max((c || 0) - excess, 0));
+            urlsToDelete.forEach(deleteMediaByUrl);
         }
     } catch (e) {
         console.error('trimMessages error:', e);
     }
 }
 
-// Deletes any chat whose lastUpdated is older than INACTIVITY_LIMIT_MS.
-// Runs once on login, then every 15 minutes while the admin panel stays open.
-// FIX: reads only the tiny "chatSummary" node now (see loadInbox below),
-// not the full chats tree - this alone was responsible for a large chunk
-// of the repeated background downloads.
 async function checkStaleUsers() {
     try {
         const snap = await db.ref('chatSummary').once('value');
@@ -249,6 +291,7 @@ auth.onAuthStateChanged((user) => {
         loginView.style.display = 'none';
         inboxView.style.display = 'flex';
         loadInbox();
+        loadPrivacySetting();
         checkStaleUsers();
         setInterval(checkStaleUsers, 15 * 60 * 1000);
     } else {
@@ -259,28 +302,53 @@ auth.onAuthStateChanged((user) => {
 });
 
 // ==========================================
-// 🔥 IMGBB API KEY
-// ==========================================
-const IMG_BB_KEY = 'c10f07a29b678cda424ef81b2e5f2302';
-
-// ==========================================
 // 🔥 VARIABLES
 // ==========================================
 const inboxView = document.getElementById('inbox-view');
 const chatView = document.getElementById('chat-view');
 const userListDiv = document.getElementById('userList');
 const chatTitle = document.getElementById('chatTitle');
+const chatStatusLine = document.getElementById('chatStatusLine');
 const chatBox = document.getElementById('chatBox');
 const msgInput = document.getElementById('msgInput');
 const sendBtn = document.getElementById('sendBtn');
 const mediaInput = document.getElementById('mediaInput');
 const voiceBtn = document.getElementById('voiceBtn');
 const deleteSelectedBtn = document.getElementById('deleteSelectedBtn');
+const privacyToggleBtn = document.getElementById('privacyToggleBtn');
 
 let activeDocId = "";
-let activeChatListener = null;
 let mediaRecorder, audioChunks = [], isRecording = false;
 let selectedUsers = new Set();
+let adminTypingTimeout = null;
+let showPresenceToAdmin = true; // whether the admin's own online/typing/recording is shared with students
+
+// ==========================================
+// 🔥 PRIVACY TOGGLE
+// Lets the admin turn off sharing their own online/typing/recording
+// status with students at any time. When off, nothing about the admin's
+// activity is written anywhere a student could see it.
+// ==========================================
+function loadPrivacySetting() {
+    db.ref('adminSettings/showPresence').on('value', (snap) => {
+        showPresenceToAdmin = snap.val() !== false; // default true
+        privacyToggleBtn.textContent = showPresenceToAdmin ? '👁 Status: ON' : '🙈 Status: OFF';
+        privacyToggleBtn.classList.toggle('off', !showPresenceToAdmin);
+        if (!showPresenceToAdmin && activeDocId) {
+            // Immediately clear anything currently visible to the student.
+            db.ref('chats/' + activeDocId + '/presence/adminOnline').set(false);
+            db.ref('chats/' + activeDocId + '/presence/adminTyping').set(false);
+            db.ref('chats/' + activeDocId + '/presence/adminRecording').set(false);
+        } else if (showPresenceToAdmin && activeDocId) {
+            db.ref('chats/' + activeDocId + '/presence/adminOnline').set(true);
+            db.ref('chats/' + activeDocId + '/presence/adminOnline').onDisconnect().set(false);
+        }
+    });
+}
+
+window.togglePrivacy = function() {
+    db.ref('adminSettings/showPresence').set(!showPresenceToAdmin);
+};
 
 // ==========================================
 // 🔥 USER NAME GENERATOR
@@ -289,7 +357,7 @@ function getUserFriendlyName(docId) {
     let savedNames = localStorage.getItem('chatUserNames');
     savedNames = savedNames ? JSON.parse(savedNames) : {};
     if (savedNames[docId]) return savedNames[docId];
-    
+
     const assignedNumbers = Object.values(savedNames).map(name => parseInt(name.replace("Student ", "")) || 0);
     const nextNumber = assignedNumbers.length > 0 ? Math.max(...assignedNumbers) + 1 : 1;
     const newName = "Student " + nextNumber;
@@ -299,37 +367,14 @@ function getUserFriendlyName(docId) {
 }
 
 // ==========================================
-// 🔥 UPLOAD TO IMGBB
-// ==========================================
-async function uploadToImgBB(file) {
-    const formData = new FormData();
-    formData.append('image', file);
-    const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_KEY}`, {
-        method: 'POST',
-        body: formData
-    });
-    const data = await res.json();
-    return data.success ? data.data.url : null;
-}
-
-// ==========================================
-// 🔥 TO BASE64
-// ==========================================
-const toBase64 = file => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = error => reject(error);
-});
-
-// ==========================================
-// 🔥 DELETE USER
+// 🔥 DELETE USER (also wipes their Storage media)
 // ==========================================
 async function deleteUserCompletely(docId, userName) {
     try {
+        await deleteChatMedia(docId);
         await db.ref('chats/' + docId).remove();
         await db.ref('chatSummary/' + docId).remove();
-        
+
         let savedNames = localStorage.getItem('chatUserNames');
         if (savedNames) {
             savedNames = JSON.parse(savedNames);
@@ -349,6 +394,11 @@ async function deleteUserCompletely(docId, userName) {
 async function deleteAllUsers() {
     if (!confirm('⚠️ Delete ALL users and ALL messages?')) return;
     try {
+        const snap = await db.ref('chatSummary').once('value');
+        const ids = snap.val() ? Object.keys(snap.val()) : [];
+        for (const id of ids) {
+            await deleteChatMedia(id);
+        }
         await db.ref('chats').remove();
         await db.ref('chatSummary').remove();
         localStorage.removeItem('chatUserNames');
@@ -380,10 +430,10 @@ function toggleUserSelection(docId, checkbox) {
 async function deleteSelectedUsers() {
     if (selectedUsers.size === 0) return;
     if (!confirm(`Delete ${selectedUsers.size} user(s)?`)) return;
-    
+
     deleteSelectedBtn.disabled = true;
     deleteSelectedBtn.textContent = '⏳ Deleting...';
-    
+
     let deleted = 0;
     const toDelete = [...selectedUsers];
     for (const docId of toDelete) {
@@ -391,7 +441,7 @@ async function deleteSelectedUsers() {
         const success = await deleteUserCompletely(docId, userName);
         if (success) deleted++;
     }
-    
+
     selectedUsers.clear();
     deleteSelectedBtn.disabled = true;
     deleteSelectedBtn.textContent = '🗑 Delete Selected';
@@ -440,29 +490,19 @@ window.deleteUser = async function(docId, userName) {
 function loadInbox() {
     inboxView.style.display = 'flex';
     chatView.style.display = 'none';
-    
-    if (activeChatListener) { 
-        if (activeDocId) {
-            db.ref('chats/' + activeDocId + '/messages').off();
-        }
-        activeChatListener = null; 
-    }
-    
+
+    detachChatListeners(activeDocId);
+    activeDocId = "";
+
     selectedUsers.clear();
     deleteSelectedBtn.disabled = true;
     deleteSelectedBtn.textContent = '🗑 Delete Selected';
 
     userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>⏳ Loading users...</div>";
 
-    // FIX (slow open + high download): this used to be db.ref('chats')
-    // which downloads EVERY message of EVERY student every single time
-    // anything changes anywhere. Now it only reads "chatSummary" - a tiny
-    // record per student (name, last message preview, counts). The full
-    // conversation for a student is only downloaded when you actually
-    // open their chat.
     db.ref('chatSummary').on('value', (snapshot) => {
         const chats = snapshot.val();
-        
+
         if (!chats) {
             userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#6b7a85;'>📭 No users yet. Share your link!</div>";
             return;
@@ -492,7 +532,7 @@ function loadInbox() {
             const itemDiv = document.createElement('div');
             itemDiv.className = `user-item ${isSelected ? 'selected' : ''}`;
             itemDiv.id = `user-item-${docId}`;
-            
+
             itemDiv.innerHTML = `
                 <div style="display:flex;align-items:center;gap:10px;width:100%;">
                     <input type="checkbox" class="select-checkbox" id="checkbox-${docId}" 
@@ -524,8 +564,6 @@ function loadInbox() {
             userListDiv.appendChild(itemDiv);
         }
     }, (error) => {
-        // If this ever spins forever again, the exact reason now shows
-        // right on screen instead of hanging silently.
         userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#c62828;'>❌ Error loading users: " + error.code + " - " + error.message + "</div>";
         console.error('loadInbox permission error:', error);
     });
@@ -537,34 +575,57 @@ function loadInbox() {
 window.goBackToInbox = function() { loadInbox(); };
 
 // ==========================================
+// 🔥 DETACH LISTENERS (messages + presence) for a given chat id
+// ==========================================
+function detachChatListeners(docId) {
+    if (!docId) return;
+    db.ref('chats/' + docId + '/messages').off();
+    db.ref('chats/' + docId + '/presence').off();
+    db.ref('chats/' + docId + '/presence/adminOnline').onDisconnect().cancel();
+    db.ref('chats/' + docId + '/presence/adminTyping').onDisconnect().cancel();
+    db.ref('chats/' + docId + '/presence/adminRecording').onDisconnect().cancel();
+    db.ref('chats/' + docId + '/presence/adminOnline').set(false);
+    db.ref('chats/' + docId + '/presence/adminTyping').set(false);
+    db.ref('chats/' + docId + '/presence/adminRecording').set(false);
+    clearTimeout(adminTypingTimeout);
+}
+
+// ==========================================
 // 🔥 OPEN CHAT
 // ==========================================
 window.openChat = function(docId, userName) {
+    const previousDocId = activeDocId;
+    if (previousDocId && previousDocId !== docId) {
+        detachChatListeners(previousDocId);
+    }
+
     activeDocId = docId;
     inboxView.style.display = 'none';
     chatView.style.display = 'flex';
     chatTitle.innerText = userName;
     chatBox.innerHTML = "";
+    chatStatusLine.textContent = 'active chat session';
+    chatStatusLine.classList.remove('active-indicator');
 
-    // Opening the chat means the admin has now seen everything from this
-    // student up to this point - clear their unread badge immediately.
     db.ref('chatSummary/' + docId + '/unreadCount').set(0);
 
-    if (activeChatListener) { 
-        db.ref('chats/' + docId + '/messages').off();
-        activeChatListener = null; 
+    detachChatListeners(docId);
+
+    if (showPresenceToAdmin) {
+        db.ref('chats/' + docId + '/presence/adminOnline').set(true);
+        db.ref('chats/' + docId + '/presence/adminOnline').onDisconnect().set(false);
     }
 
-    activeChatListener = db.ref('chats/' + docId + '/messages')
+    db.ref('chats/' + docId + '/messages')
         .orderByChild('time_now')
         .on('child_added', (snapshot) => {
             const data = snapshot.val();
             if (!data) return;
-            
+
             if (data.sender === 'user' && data.status !== 'read') {
                 db.ref('chats/' + docId + '/messages/' + snapshot.key + '/status').set('read');
             }
-            
+
             renderMessage(snapshot.key, data);
             chatBox.scrollTop = chatBox.scrollHeight;
         });
@@ -574,14 +635,52 @@ window.openChat = function(docId, userName) {
             removeMessageFromUI(snapshot.key);
         });
 
-    // Live tick updates: the instant the student's app marks a message
-    // as 'read' (because they saw it), this listener flips the admin's
-    // own tick to blue right away - no refresh needed.
     db.ref('chats/' + docId + '/messages')
         .on('child_changed', (snapshot) => {
             updateMessageTick(snapshot.key, snapshot.val());
         });
+
+    db.ref('chats/' + docId + '/presence').on('value', (snapshot) => {
+        const p = snapshot.val() || {};
+        if (p.userRecording) {
+            chatStatusLine.textContent = '🎙️ recording a voice note...';
+            chatStatusLine.classList.add('active-indicator');
+        } else if (p.userTyping) {
+            chatStatusLine.textContent = '✍️ typing...';
+            chatStatusLine.classList.add('active-indicator');
+        } else if (p.userOnline) {
+            chatStatusLine.textContent = '🟢 online';
+            chatStatusLine.classList.remove('active-indicator');
+        } else {
+            chatStatusLine.textContent = 'active chat session';
+            chatStatusLine.classList.remove('active-indicator');
+        }
+    });
 };
+
+document.addEventListener('visibilitychange', () => {
+    if (!activeDocId || !showPresenceToAdmin) return;
+    db.ref('chats/' + activeDocId + '/presence/adminOnline').set(document.visibilityState === 'visible');
+});
+
+// ==========================================
+// 🔥 TYPING / RECORDING INDICATOR (admin -> student)
+// ==========================================
+msgInput.addEventListener('input', () => {
+    if (!activeDocId || !showPresenceToAdmin) return;
+    db.ref('chats/' + activeDocId + '/presence/adminTyping').set(true);
+    db.ref('chats/' + activeDocId + '/presence/adminTyping').onDisconnect().set(false);
+    clearTimeout(adminTypingTimeout);
+    adminTypingTimeout = setTimeout(() => {
+        db.ref('chats/' + activeDocId + '/presence/adminTyping').set(false);
+    }, TYPING_TIMEOUT_MS);
+});
+
+function clearAdminTyping() {
+    if (!activeDocId) return;
+    clearTimeout(adminTypingTimeout);
+    db.ref('chats/' + activeDocId + '/presence/adminTyping').set(false);
+}
 
 // ==========================================
 // 🔥 RENDER MESSAGE
@@ -645,7 +744,7 @@ function openLightbox(url, type) {
     const content = document.getElementById('mediaLightboxContent');
     content.innerHTML = '';
     lightbox.style.display = 'flex';
-    
+
     if (type === 'image') {
         content.innerHTML = `<img src="${url}" style="max-width:100%;max-height:100%;border-radius:6px;">`;
     } else if (type === 'video') {
@@ -668,25 +767,23 @@ document.getElementById('mediaLightbox').addEventListener('click', (e) => {
 // ==========================================
 async function sendMessageToFirebase(type, content) {
     if (!activeDocId) return;
-    
+    clearAdminTyping();
+
     let fileUrl = '';
     let messageText = content;
-    
+
     if (type === 'text') {
         messageText = content;
-    } else if (type === 'audio') {
-        fileUrl = content;
-        messageText = 'Sent a voice note';
     } else {
-        const url = await uploadToImgBB(content);
-        if (!url) {
+        try {
+            fileUrl = await uploadMediaToStorage(content, activeDocId, type);
+        } catch (e) {
             alert('Upload failed!');
             return;
         }
-        fileUrl = url;
-        messageText = `Sent a ${type}`;
+        messageText = type === 'audio' ? 'Sent a voice note' : `Sent a ${type}`;
     }
-    
+
     const timestamp = Date.now();
     const msgData = {
         sender: 'admin',
@@ -697,7 +794,7 @@ async function sendMessageToFirebase(type, content) {
         time_label: new Date().toLocaleTimeString(),
         status: 'sent'
     };
-    
+
     await db.ref('chats/' + activeDocId + '/messages').push(msgData);
     await db.ref('chats/' + activeDocId + '/lastUpdated').set(timestamp);
     await db.ref('chatSummary/' + activeDocId).update({
@@ -738,15 +835,10 @@ mediaInput.addEventListener('change', async (e) => {
         e.target.value = '';
         return;
     }
-    const type = file.type.startsWith('image/') ? 'image' : 
+    const type = file.type.startsWith('image/') ? 'image' :
                  file.type.startsWith('video/') ? 'video' : 'audio';
-    
-    if (type === 'audio') {
-        const base64 = await toBase64(file);
-        await sendMessageToFirebase('audio', base64);
-    } else {
-        await sendMessageToFirebase(type, file);
-    }
+
+    await sendMessageToFirebase(type, file);
     e.target.value = '';
 });
 
@@ -758,17 +850,20 @@ voiceBtn.addEventListener('click', async () => {
             audioChunks = [];
             mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
             mediaRecorder.onstop = async () => {
-                const blob = new Blob(audioChunks, { type: 'audio/mp3' });
-                const reader = new FileReader();
-                reader.readAsDataURL(blob);
-                reader.onload = async () => {
-                    await sendMessageToFirebase('audio', reader.result);
-                };
+                const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                if (activeDocId) {
+                    db.ref('chats/' + activeDocId + '/presence/adminRecording').set(false);
+                }
+                await sendMessageToFirebase('audio', blob);
             };
             mediaRecorder.start();
             isRecording = true;
             voiceBtn.textContent = '🛑';
             voiceBtn.classList.add('recording');
+            if (activeDocId && showPresenceToAdmin) {
+                db.ref('chats/' + activeDocId + '/presence/adminRecording').set(true);
+                db.ref('chats/' + activeDocId + '/presence/adminRecording').onDisconnect().set(false);
+            }
         } catch (e) {
             alert('Microphone access denied');
         }
