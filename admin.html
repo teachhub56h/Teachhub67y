@@ -154,7 +154,6 @@
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-storage-compat.js"></script>
 
 <script>
 // ==========================================
@@ -174,7 +173,6 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
 const auth = firebase.auth();
-const storage = firebase.storage();
 
 // ==========================================
 // 🔥 CONFIG
@@ -184,42 +182,25 @@ const INACTIVITY_LIMIT_MS = 48 * 60 * 60 * 1000; // 48 hours
 const TYPING_TIMEOUT_MS = 2500;
 
 // ==========================================
-// 🔥 MEDIA STORAGE (images/videos/audio all live here now - no more
-// third-party ImgBB. A message's file just holds a small link; the
-// real file lives at media/{chatId}/... and gets deleted automatically
-// whenever that message is trimmed, or the whole chat is deleted.)
+// 🔥 CLOUDINARY (images, videos, and audio all go here now)
 // ==========================================
-async function uploadMediaToStorage(file, chatId, kind) {
-    let ext = 'bin';
-    if (kind === 'audio') ext = 'webm';
-    else if (file.name && file.name.includes('.')) ext = file.name.split('.').pop();
-    else if (kind === 'image') ext = 'jpg';
-    else if (kind === 'video') ext = 'mp4';
-    const filename = 'media/' + chatId + '/' + Date.now() + '_' + kind + '.' + ext;
-    const ref = storage.ref().child(filename);
-    await ref.put(file);
-    return await ref.getDownloadURL();
+const CLOUDINARY_CLOUD_NAME = 'sejb7ryr';
+const CLOUDINARY_UPLOAD_PRESET = 'ml_default';
+
+async function uploadMediaToCloudinary(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, {
+        method: 'POST',
+        body: formData
+    });
+    const data = await res.json();
+    if (!data.secure_url) throw new Error(data.error?.message || 'Upload failed');
+    return data.secure_url;
 }
 
-function deleteMediaByUrl(url) {
-    if (!url) return;
-    try {
-        storage.refFromURL(url).delete().catch(() => {});
-    } catch (e) { /* not a storage URL, ignore */ }
-}
-
-async function deleteChatMedia(chatId) {
-    try {
-        const folderRef = storage.ref('media/' + chatId);
-        const list = await folderRef.listAll();
-        await Promise.all(list.items.map(item => item.delete().catch(() => {})));
-    } catch (e) {
-        console.error('deleteChatMedia error:', e);
-    }
-}
-
-// Keeps only the latest MAX_MESSAGES_PER_CHAT messages, and deletes the
-// dropped messages' media files from Storage too.
+// Keeps only the latest MAX_MESSAGES_PER_CHAT messages.
 async function trimMessages(chatId, maxCount) {
     try {
         const snap = await db.ref('chats/' + chatId + '/messages').once('value');
@@ -231,15 +212,9 @@ async function trimMessages(chatId, maxCount) {
                 .limitToFirst(excess)
                 .once('value');
             const updates = {};
-            const urlsToDelete = [];
-            oldestSnap.forEach(child => {
-                updates[child.key] = null;
-                const val = child.val();
-                if (val && val.type !== 'text' && val.file_url) urlsToDelete.push(val.file_url);
-            });
+            oldestSnap.forEach(child => { updates[child.key] = null; });
             await db.ref('chats/' + chatId + '/messages').update(updates);
             await db.ref('chatSummary/' + chatId + '/msgCount').transaction(c => Math.max((c || 0) - excess, 0));
-            urlsToDelete.forEach(deleteMediaByUrl);
         }
     } catch (e) {
         console.error('trimMessages error:', e);
@@ -374,7 +349,6 @@ function getUserFriendlyName(docId) {
 // ==========================================
 async function deleteUserCompletely(docId, userName) {
     try {
-        await deleteChatMedia(docId);
         await db.ref('chats/' + docId).remove();
         await db.ref('chatSummary/' + docId).remove();
 
@@ -397,11 +371,6 @@ async function deleteUserCompletely(docId, userName) {
 async function deleteAllUsers() {
     if (!confirm('⚠️ Delete ALL users and ALL messages?')) return;
     try {
-        const snap = await db.ref('chatSummary').once('value');
-        const ids = snap.val() ? Object.keys(snap.val()) : [];
-        for (const id of ids) {
-            await deleteChatMedia(id);
-        }
         await db.ref('chats').remove();
         await db.ref('chatSummary').remove();
         localStorage.removeItem('chatUserNames');
@@ -779,7 +748,7 @@ async function sendMessageToFirebase(type, content) {
         messageText = content;
     } else {
         try {
-            fileUrl = await uploadMediaToStorage(content, activeDocId, type);
+            fileUrl = await uploadMediaToCloudinary(content);
         } catch (e) {
             alert('Upload failed!');
             return;
