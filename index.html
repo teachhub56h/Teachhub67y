@@ -168,6 +168,56 @@ async function uploadMediaToCloudinary(file) {
     return data.secure_url;
 }
 
+// ==========================================
+// 🔥 FIX: recorded voice notes come out of MediaRecorder as WebM, which
+// has a well-known browser bug - the file's duration doesn't get saved
+// properly, so players can't show how long the clip is and sometimes
+// won't play it back correctly on another device. Converting to WAV
+// right after recording gives it a proper, always-correct duration.
+// ==========================================
+async function convertBlobToWav(blob) {
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+    const targetRate = 16000; // plenty for voice, keeps file size small
+    const offlineCtx = new OfflineAudioContext(1, Math.ceil(decoded.duration * targetRate), targetRate);
+    const source = offlineCtx.createBufferSource();
+    source.buffer = decoded;
+    source.connect(offlineCtx.destination);
+    source.start();
+    const rendered = await offlineCtx.startRendering();
+    audioCtx.close();
+    return encodeWAV(rendered.getChannelData(0), targetRate);
+}
+
+function encodeWAV(samples, sampleRate) {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+    let offset = 44;
+    for (let i = 0; i < samples.length; i++, offset += 2) {
+        const s = Math.max(-1, Math.min(1, samples[i]));
+        view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
+    }
+    return new Blob([view], { type: 'audio/wav' });
+}
+
+function writeString(view, offset, string) {
+    for (let i = 0; i < string.length; i++) view.setUint8(offset + i, string.charCodeAt(i));
+}
+
 async function trimMessages(chatId, maxCount) {
     try {
         const snap = await db.ref('chats/' + chatId + '/messages').once('value');
@@ -434,7 +484,7 @@ function renderMessage(msgId, data) {
     } else if (data.type === 'video') {
         msgDiv.innerHTML = `<video src="${data.file_url}" controls onclick="openLightbox('${data.file_url}', 'video')"></video>`;
     } else if (data.type === 'audio') {
-        msgDiv.innerHTML = `<audio src="${data.file_url}" controls></audio>`;
+        msgDiv.innerHTML = `<audio src="${data.file_url}" controls preload="metadata"></audio>`;
     }
 
     let tickHtml = '';
@@ -530,9 +580,16 @@ document.getElementById('voiceBtn').addEventListener('click', async () => {
 
             mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
             mediaRecorder.onstop = async () => {
-                const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                const rawBlob = new Blob(audioChunks, { type: 'audio/webm' });
                 db.ref('chats/' + myChatDocId + '/presence/userRecording').set(false);
-                await sendMessage('audio', blob);
+                let wavBlob;
+                try {
+                    wavBlob = await convertBlobToWav(rawBlob);
+                } catch (e) {
+                    console.error('WAV conversion failed, sending raw recording:', e);
+                    wavBlob = rawBlob;
+                }
+                await sendMessage('audio', wavBlob);
             };
 
             mediaRecorder.start();
