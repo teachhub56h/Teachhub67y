@@ -21,11 +21,12 @@
         .profile-img { width: 40px; height: 40px; border-radius: 12px; background: #ffffff; object-fit: contain; padding: 3px; }
         .header-info { flex: 1; min-width: 80px; }
         .header-info .name { font-size: 16px; font-weight: 600; }
-        .header-info .status { font-size: 11px; color: #a9c6dd; }
+        .header-info .status { font-size: 11px; color: #a9c6dd; transition: color 0.2s; }
+        .header-info .status.active-indicator { color: #F4B400; font-weight: 600; }
         .header-btn { background: #F4B400; color: #1B4F72; border: none; padding: 5px 10px; border-radius: 14px; font-size: 11px; font-weight: 700; cursor: pointer; display: inline-block; white-space: nowrap; }
         .header-btn.green { background: #43a047; color: white; cursor: default; }
         .header-btn:disabled { opacity: 0.7; cursor: default; }
-        
+
         .install-help-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 999; align-items: center; justify-content: center; padding: 20px; }
         .install-help-box { background: #fff; border-radius: 12px; padding: 20px; max-width: 340px; text-align: center; color: #16232e; font-size: 14px; line-height: 1.5; }
         .install-help-box b { color: #1B4F72; }
@@ -66,12 +67,13 @@
 <body>
 <div class="chat-container">
     <div class="chat-header">
-        <img class="profile-img" src="logo-192.png" alt="Teach Hub">
+        <img class="profile-img" id="logoBtn" src="logo-192.png" alt="Teach Hub" style="cursor:pointer;">
         <div class="header-info">
             <div class="name">Teach Hub Support</div>
             <div class="status" id="notifStatus">🔔 Notifications Off</div>
         </div>
         <button id="notifBtn" class="header-btn">🔔 Enable</button>
+        <button class="header-btn" id="submitWorkBtn" style="background:#8e24aa; color:white;">📸 Submit Work</button>
         <button class="header-btn" id="installBtn" style="background:#43a047; color:white;">📲 Install</button>
     </div>
 
@@ -79,14 +81,24 @@
 
     <div class="chat-input-area">
         <div class="input-container">
-            <input type="file" id="mediaInput" accept="image/*,video/*,audio/*" style="display: none;">
-            <button class="icon-btn" id="attachBtn" onclick="document.getElementById('mediaInput').click()" style="margin-right: 8px;">📎</button>
+            <input type="file" id="mediaInput" accept="image/*" style="display: none;">
             <input type="text" id="msgInput" placeholder="Type a message...">
             <button class="icon-btn" id="voiceBtn">🎙️</button>
         </div>
         <button class="send-btn" id="sendBtn">➤</button>
     </div>
 </div>
+
+<div class="install-help-overlay" id="aboutOverlay">
+    <div class="install-help-box">
+        <p><b>About Teach Hub</b></p>
+        <p style="margin-top:10px; text-align:left;">Teach Hub is the official support and work-submission app for our teaching program. We've been running for 3 years, helping students stay in direct contact with their instructors.</p>
+        <p style="margin-top:10px; text-align:left;">Through this app you can chat with your instructor, ask questions, and submit your work (photos, screenshots, or voice notes) directly - all in one place.</p>
+        <p style="margin-top:10px; text-align:left;">This is the genuine, official app for our program. If you ever have a question about anything, you can always ask your instructor right here in the chat.</p>
+        <button id="aboutCloseBtn">Got it</button>
+    </div>
+</div>
+
 
 <div class="install-help-overlay" id="installHelpOverlay">
     <div class="install-help-box">
@@ -103,10 +115,11 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-storage-compat.js"></script>
 
 <script>
 // ==========================================
-// 🔥 FIREBASE CONFIG - CORRECT
+// 🔥 FIREBASE CONFIG (newpro-affc8)
 // ==========================================
 const firebaseConfig = {
     apiKey: "AIzaSyDbjIDUk4bnJuVfSQZua61dyiDsjjC6uiU",
@@ -115,16 +128,34 @@ const firebaseConfig = {
     projectId: "newpro-affc8",
     storageBucket: "newpro-affc8.firebasestorage.app",
     messagingSenderId: "1080341611919",
-    appId: "1:1080341611919:web:373d7fa13901e4b41c77fa"
+    appId: "1:1080341611919:web:373d7fa13901e4b41c77fa",
+    measurementId: "G-CV3NDNC8TC"
 };
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
+const storage = firebase.storage();
 
 // ==========================================
-// 🔥 CONFIG: keep only latest 30 messages per chat
+// 🔥 CONFIG
 // ==========================================
 const MAX_MESSAGES_PER_CHAT = 30;
+const TYPING_TIMEOUT_MS = 2500;
+
+// ==========================================
+// 🔥 MEDIA STORAGE (images/videos/audio - no more ImgBB)
+// ==========================================
+async function uploadMediaToStorage(file, chatId, kind) {
+    let ext = 'bin';
+    if (kind === 'audio') ext = 'webm';
+    else if (file.name && file.name.includes('.')) ext = file.name.split('.').pop();
+    else if (kind === 'image') ext = 'jpg';
+    else if (kind === 'video') ext = 'mp4';
+    const filename = 'media/' + chatId + '/' + Date.now() + '_' + kind + '.' + ext;
+    const ref = storage.ref().child(filename);
+    await ref.put(file);
+    return await ref.getDownloadURL();
+}
 
 async function trimMessages(chatId, maxCount) {
     try {
@@ -137,41 +168,29 @@ async function trimMessages(chatId, maxCount) {
                 .limitToFirst(excess)
                 .once('value');
             const updates = {};
-            oldestSnap.forEach(child => { updates[child.key] = null; });
+            const urlsToDelete = [];
+            oldestSnap.forEach(child => {
+                updates[child.key] = null;
+                const val = child.val();
+                if (val && val.type !== 'text' && val.file_url) urlsToDelete.push(val.file_url);
+            });
             await db.ref('chats/' + chatId + '/messages').update(updates);
-            // Keep the lightweight summary's counter roughly in sync with
-            // what's actually still stored.
             await db.ref('chatSummary/' + chatId + '/msgCount').transaction(c => Math.max((c || 0) - excess, 0));
+            urlsToDelete.forEach(url => {
+                try { storage.refFromURL(url).delete().catch(() => {}); } catch (e) {}
+            });
         }
     } catch (e) {
         console.error('trimMessages error:', e);
     }
 }
 
-// ==========================================
-// 🔥 CHAT SUMMARY (bandwidth optimization)
-// ==========================================
-// The admin inbox used to listen to the entire "chats" tree - meaning
-// every message (including big voice notes) of every student was
-// re-downloaded on every single update anywhere. Instead, we keep a tiny
-// "chatSummary/{id}" record per student with just what the inbox list
-// needs to display. The admin only ever downloads the full message list
-// for ONE chat at a time, when they actually open it.
 function bumpSummaryCount(field, delta) {
     return db.ref('chatSummary/' + myChatDocId + '/' + field).transaction(c => (c || 0) + delta);
 }
 
 // ==========================================
-// 🔥 IMGBB API KEY
-// ==========================================
-const IMG_BB_KEY = 'c10f07a29b678cda424ef81b2e5f2302';
-
-// ==========================================
-// 🔥 STUDENT ID - generated locally, instantly, no login/network needed.
-// Stored in localStorage so the SAME chat continues after a refresh.
-// (Falls back to an in-memory id only in the rare case storage is
-// completely blocked - that one case can't survive a refresh, everything
-// else does.)
+// 🔥 STUDENT ID
 // ==========================================
 function getOrCreateChatId() {
     const KEY = 'teachhub_chat_id';
@@ -183,50 +202,81 @@ function getOrCreateChatId() {
         }
         return id;
     } catch (e) {
-        console.warn('localStorage unavailable, using a temporary id for this session');
         return (Date.now().toString(36) + Math.random().toString(36).slice(2));
     }
 }
 
 let myChatDocId = getOrCreateChatId();
 let localMsgCounter = 0;
+let studentTypingTimeout = null;
+let baseStatusText = '🔔 Notifications Off';
+let showingPeerActivity = false;
+
+const notifStatusEl = document.getElementById('notifStatus');
 
 console.log('Chat ID ready instantly:', myChatDocId);
 loadMessages();
+setupPresence();
 
 // ==========================================
-// 🔥 UPLOAD TO IMGBB
+// 🔥 PRESENCE: online / typing / recording
 // ==========================================
-async function uploadToImgBB(file) {
-    const formData = new FormData();
-    formData.append('image', file);
-    const res = await fetch(`https://api.imgbb.com/1/upload?key=${IMG_BB_KEY}`, {
-        method: 'POST',
-        body: formData
+function setupPresence() {
+    db.ref('chats/' + myChatDocId + '/presence/userOnline').set(true);
+    db.ref('chats/' + myChatDocId + '/presence/userOnline').onDisconnect().set(false);
+
+    document.addEventListener('visibilitychange', () => {
+        db.ref('chats/' + myChatDocId + '/presence/userOnline').set(document.visibilityState === 'visible');
     });
-    const data = await res.json();
-    return data.success ? data.data.url : null;
+
+    // Watch the admin's presence (only shown if the admin has their
+    // privacy toggle turned on).
+    db.ref('chats/' + myChatDocId + '/presence').on('value', (snapshot) => {
+        const p = snapshot.val() || {};
+        if (p.adminRecording) {
+            showingPeerActivity = true;
+            notifStatusEl.textContent = '🎙️ recording a voice note...';
+            notifStatusEl.classList.add('active-indicator');
+        } else if (p.adminTyping) {
+            showingPeerActivity = true;
+            notifStatusEl.textContent = '✍️ typing...';
+            notifStatusEl.classList.add('active-indicator');
+        } else if (p.adminOnline) {
+            showingPeerActivity = true;
+            notifStatusEl.textContent = '🟢 online';
+            notifStatusEl.classList.remove('active-indicator');
+        } else {
+            showingPeerActivity = false;
+            notifStatusEl.textContent = baseStatusText;
+            notifStatusEl.classList.remove('active-indicator');
+        }
+    });
 }
 
-// ==========================================
-// 🔥 TO BASE64 (For Audio)
-// ==========================================
-const toBase64 = file => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.readAsDataURL(file);
-    reader.onload = () => resolve(reader.result);
-    reader.onerror = error => reject(error);
+function setBaseStatus(text) {
+    baseStatusText = text;
+    if (!showingPeerActivity) notifStatusEl.textContent = text;
+}
+
+document.getElementById('msgInput').addEventListener('input', () => {
+    db.ref('chats/' + myChatDocId + '/presence/userTyping').set(true);
+    db.ref('chats/' + myChatDocId + '/presence/userTyping').onDisconnect().set(false);
+    clearTimeout(studentTypingTimeout);
+    studentTypingTimeout = setTimeout(() => {
+        db.ref('chats/' + myChatDocId + '/presence/userTyping').set(false);
+    }, TYPING_TIMEOUT_MS);
 });
+
+function clearStudentTyping() {
+    clearTimeout(studentTypingTimeout);
+    db.ref('chats/' + myChatDocId + '/presence/userTyping').set(false);
+}
 
 // ==========================================
 // 🔥 SEND MESSAGE
 // ==========================================
-// The user never waits: the message is drawn on screen immediately
-// (renderOptimistic), and actualSend fires the real Firebase write right
-// away - no login step in front of it anymore. If the network is briefly
-// down, Firebase's own client queues the write internally and sends it
-// the instant a connection is available, so nothing is lost.
 async function sendMessage(type, content) {
+    clearStudentTyping();
     const localId = 'local-' + (++localMsgCounter) + '-' + Date.now();
     renderOptimistic(type, content, localId);
     actualSend({ localId, type, content });
@@ -234,10 +284,8 @@ async function sendMessage(type, content) {
 
 function renderOptimistic(type, content, localId) {
     let previewUrl = '';
-    if (type === 'image' || type === 'video') {
+    if (type === 'image' || type === 'video' || type === 'audio') {
         previewUrl = URL.createObjectURL(content);
-    } else if (type === 'audio') {
-        previewUrl = content; // already a playable base64 data URL
     }
     const data = {
         sender: 'user',
@@ -261,17 +309,9 @@ async function actualSend(job) {
     try {
         if (type === 'text') {
             messageText = content;
-        } else if (type === 'audio') {
-            fileUrl = content;
-            messageText = 'Sent a voice note';
         } else {
-            const url = await uploadToImgBB(content);
-            if (!url) {
-                markMessageFailed(job);
-                return;
-            }
-            fileUrl = url;
-            messageText = `Sent a ${type}`;
+            fileUrl = await uploadMediaToStorage(content, myChatDocId, type);
+            messageText = type === 'audio' ? 'Sent a voice note' : `Sent a ${type}`;
         }
 
         const timestamp = Date.now();
@@ -287,15 +327,11 @@ async function actualSend(job) {
 
         const newRef = db.ref('chats/' + myChatDocId + '/messages').push();
 
-        // Swap the temporary bubble over to the real database key
-        // IMMEDIATELY - before the write even goes out - so the live
-        // listener always finds it already on screen and never draws a
-        // second copy of the same message.
         const el = document.getElementById('msg-' + localId);
         if (el) {
             el.id = 'msg-' + newRef.key;
-            if ((type === 'image' || type === 'video') && fileUrl) {
-                const mediaEl = el.querySelector('img, video');
+            if ((type === 'image' || type === 'video' || type === 'audio') && fileUrl) {
+                const mediaEl = el.querySelector('img, video, audio');
                 if (mediaEl) mediaEl.src = fileUrl;
             }
         }
@@ -308,7 +344,7 @@ async function actualSend(job) {
             lastSender: 'user'
         });
         bumpSummaryCount('msgCount', 1);
-        bumpSummaryCount('unreadCount', 1); // admin hasn't seen this one yet
+        bumpSummaryCount('unreadCount', 1);
         await trimMessages(myChatDocId, MAX_MESSAGES_PER_CHAT);
 
         console.log('✅ Message saved!');
@@ -332,18 +368,16 @@ function markMessageFailed(job) {
 // ==========================================
 function loadMessages() {
     const chatBox = document.getElementById('chatBox');
-    
+
     db.ref('chats/' + myChatDocId + '/messages')
         .orderByChild('time_now')
         .on('child_added', (snapshot) => {
             const data = snapshot.val();
             if (!data) return;
-            if (document.getElementById('msg-' + snapshot.key)) return; // already drawn optimistically
+            if (document.getElementById('msg-' + snapshot.key)) return;
             renderMessage(snapshot.key, data);
             chatBox.scrollTop = chatBox.scrollHeight;
 
-            // The instant an admin reply is shown on screen, mark it read
-            // so the admin sees the blue double-tick ("seen") right away.
             if (data.sender === 'admin' && data.status !== 'read') {
                 db.ref('chats/' + myChatDocId + '/messages/' + snapshot.key + '/status').set('read');
             }
@@ -353,11 +387,31 @@ function loadMessages() {
         .on('child_removed', (snapshot) => {
             removeMessageFromUI(snapshot.key);
         });
+
+    db.ref('chats/' + myChatDocId + '/messages')
+        .on('child_changed', (snapshot) => {
+            updateMessageTick(snapshot.key, snapshot.val());
+        });
 }
 
 function removeMessageFromUI(msgId) {
     const el = document.getElementById('msg-' + msgId);
     if (el) el.remove();
+}
+
+function updateMessageTick(msgId, data) {
+    if (!data || data.sender !== 'user') return;
+    const el = document.getElementById('msg-' + msgId);
+    if (!el) return;
+    let tickHtml = '';
+    if (data.status === 'sent') tickHtml = '<span class="tick sent">✓</span>';
+    else if (data.status === 'delivered') tickHtml = '<span class="tick delivered">✓✓</span>';
+    else if (data.status === 'read') tickHtml = '<span class="tick read">✓✓</span>';
+    const meta = el.querySelector('.msg-meta');
+    if (meta) {
+        const timeSpan = meta.querySelector('span');
+        meta.innerHTML = (timeSpan ? timeSpan.outerHTML : '') + ' ' + tickHtml;
+    }
 }
 
 function renderMessage(msgId, data) {
@@ -401,7 +455,7 @@ function openLightbox(url, type) {
     const content = document.getElementById('mediaLightboxContent');
     content.innerHTML = '';
     lightbox.style.display = 'flex';
-    
+
     if (type === 'image') {
         content.innerHTML = `<img src="${url}" style="max-width:100%;max-height:100%;border-radius:6px;">`;
     } else if (type === 'video') {
@@ -445,23 +499,18 @@ document.getElementById('msgInput').addEventListener('keypress', (e) => {
 document.getElementById('mediaInput').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    
+
     if (file.size > 1548576) {
         alert('File size limit is 1.5MB.');
         e.target.value = '';
         return;
     }
-    
-    const type = file.type.startsWith('image/') ? 'image' : 
-                 file.type.startsWith('video/') ? 'video' : 
+
+    const type = file.type.startsWith('image/') ? 'image' :
+                 file.type.startsWith('video/') ? 'video' :
                  file.type.startsWith('audio/') ? 'audio' : 'text';
-    
-    if (type === 'audio') {
-        const base64 = await toBase64(file);
-        await sendMessage('audio', base64);
-    } else {
-        await sendMessage(type, file);
-    }
+
+    await sendMessage(type, file);
     e.target.value = '';
 });
 
@@ -473,21 +522,20 @@ document.getElementById('voiceBtn').addEventListener('click', async () => {
             const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
             mediaRecorder = new MediaRecorder(stream);
             audioChunks = [];
-            
+
             mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
             mediaRecorder.onstop = async () => {
-                const blob = new Blob(audioChunks, { type: 'audio/mp3' });
-                const reader = new FileReader();
-                reader.readAsDataURL(blob);
-                reader.onload = async () => {
-                    await sendMessage('audio', reader.result);
-                };
+                const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                db.ref('chats/' + myChatDocId + '/presence/userRecording').set(false);
+                await sendMessage('audio', blob);
             };
-            
+
             mediaRecorder.start();
             isRecording = true;
             document.getElementById('voiceBtn').textContent = '🛑';
             document.getElementById('voiceBtn').classList.add('recording');
+            db.ref('chats/' + myChatDocId + '/presence/userRecording').set(true);
+            db.ref('chats/' + myChatDocId + '/presence/userRecording').onDisconnect().set(false);
         } catch (error) {
             alert('Microphone access denied');
         }
@@ -508,7 +556,7 @@ document.getElementById('notifBtn').addEventListener('click', async () => {
         document.getElementById('notifBtn').textContent = '✅ Enabled';
         document.getElementById('notifBtn').className = 'header-btn green';
         document.getElementById('notifBtn').disabled = true;
-        document.getElementById('notifStatus').textContent = '🔔 Notifications On';
+        setBaseStatus('🔔 Notifications On');
         alert('✅ Notifications Enabled!');
     } else {
         alert('❌ Please allow notifications from browser settings.');
@@ -549,9 +597,37 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
+// 🔥 SUBMIT WORK BUTTON
+// ==========================================
+document.getElementById('submitWorkBtn').addEventListener('click', () => {
+    document.getElementById('mediaInput').click();
+});
+
+// ==========================================
+// 🔥 ABOUT PAGE (opens when the logo is tapped)
+// ==========================================
+document.getElementById('logoBtn').addEventListener('click', () => {
+    document.getElementById('aboutOverlay').style.display = 'flex';
+});
+document.getElementById('aboutCloseBtn').addEventListener('click', () => {
+    document.getElementById('aboutOverlay').style.display = 'none';
+});
+
+// ==========================================
+// 🔥 SERVICE WORKER
+// ==========================================
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/Teachhub67y/sw.js')
+            .then(reg => console.log('✅ Service worker registered', reg))
+            .catch(err => console.log('❌ SW registration failed', err));
+    });
+}
+
+// ==========================================
 // 🔥 START
 // ==========================================
-console.log('✅ Student app started, connecting...');
+console.log('✅ Student app started');
 </script>
 </body>
 </html>
