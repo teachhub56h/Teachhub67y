@@ -45,6 +45,13 @@
         .msg video { max-width: 100%; max-height: 200px; border-radius: 6px; display: block; }
         .msg audio { max-width: 100%; display: block; outline: none; }
 
+        .voice-msg { display: flex; align-items: center; gap: 8px; min-width: 190px; padding: 2px 2px; }
+        .voice-play-btn { width: 32px; height: 32px; border-radius: 50%; background: #1B4F72; color: #fff; border: none; display: flex; align-items: center; justify-content: center; font-size: 13px; cursor: pointer; flex-shrink: 0; }
+        .voice-progress-track { flex: 1; height: 4px; background: #c7d3da; border-radius: 2px; position: relative; cursor: pointer; }
+        .voice-progress-fill { height: 100%; width: 0%; background: #1B4F72; border-radius: 2px; }
+        .voice-duration { font-size: 11px; color: #6b7a85; min-width: 34px; text-align: right; flex-shrink: 0; }
+        .voice-icon { font-size: 15px; flex-shrink: 0; }
+
         .msg-meta { align-self: flex-end; display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #6b7a85; user-select: none; }
 
         .tick { display: inline-block; font-weight: bold; font-size: 12px; margin-left: 2px; }
@@ -169,25 +176,47 @@ async function uploadMediaToCloudinary(file) {
 }
 
 // ==========================================
-// 🔥 FIX: recorded voice notes come out of MediaRecorder as WebM, which
-// has a well-known browser bug - the file's duration doesn't get saved
-// properly, so players can't show how long the clip is and sometimes
-// won't play it back correctly on another device. Converting to WAV
-// right after recording gives it a proper, always-correct duration.
+// 🔥 FIX: recorded voice notes must never pass through WebM/MediaRecorder,
+// which has a well-known browser bug that corrupts the saved duration
+// (clips end up reporting as ~1 second regardless of actual length).
+// Instead, we capture the raw audio samples directly with the Web Audio
+// API as they're recorded, and build the WAV file ourselves - a WAV
+// built this way always has a correct, accurate duration.
 // ==========================================
-async function convertBlobToWav(blob) {
-    const arrayBuffer = await blob.arrayBuffer();
-    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    const decoded = await audioCtx.decodeAudioData(arrayBuffer);
-    const targetRate = 16000; // plenty for voice, keeps file size small
-    const offlineCtx = new OfflineAudioContext(1, Math.ceil(decoded.duration * targetRate), targetRate);
-    const source = offlineCtx.createBufferSource();
-    source.buffer = decoded;
-    source.connect(offlineCtx.destination);
-    source.start();
-    const rendered = await offlineCtx.startRendering();
-    audioCtx.close();
-    return encodeWAV(rendered.getChannelData(0), targetRate);
+let recordCtx, recordSource, recordProcessor, recordedChunks, recordSampleRate, recordStream;
+
+async function startRawRecording() {
+    recordStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    recordCtx = new (window.AudioContext || window.webkitAudioContext)();
+    recordSampleRate = recordCtx.sampleRate;
+    recordSource = recordCtx.createMediaStreamSource(recordStream);
+    recordProcessor = recordCtx.createScriptProcessor(4096, 1, 1);
+    recordedChunks = [];
+
+    recordProcessor.onaudioprocess = (e) => {
+        recordedChunks.push(new Float32Array(e.inputBuffer.getChannelData(0)));
+    };
+
+    const silentGain = recordCtx.createGain();
+    silentGain.gain.value = 0; // keeps the mic audio from being audibly echoed back
+    recordSource.connect(recordProcessor);
+    recordProcessor.connect(silentGain);
+    silentGain.connect(recordCtx.destination);
+}
+
+function stopRawRecording() {
+    recordProcessor.disconnect();
+    recordSource.disconnect();
+    recordStream.getTracks().forEach(t => t.stop());
+
+    let totalLength = 0;
+    for (const chunk of recordedChunks) totalLength += chunk.length;
+    const merged = new Float32Array(totalLength);
+    let offset = 0;
+    for (const chunk of recordedChunks) { merged.set(chunk, offset); offset += chunk.length; }
+
+    recordCtx.close();
+    return encodeWAV(merged, recordSampleRate);
 }
 
 function encodeWAV(samples, sampleRate) {
@@ -454,6 +483,55 @@ function removeMessageFromUI(msgId) {
     if (el) el.remove();
 }
 
+// ==========================================
+// 🔥 CUSTOM VOICE MESSAGE PLAYER
+// ==========================================
+function formatTime(sec) {
+    if (!isFinite(sec) || sec < 0) sec = 0;
+    const m = Math.floor(sec / 60);
+    const s = Math.floor(sec % 60);
+    return m + ':' + String(s).padStart(2, '0');
+}
+
+function initVoiceMessage(container) {
+    const audioEl = container.querySelector('.voice-audio-el');
+    const playBtn = container.querySelector('.voice-play-btn');
+    const fill = container.querySelector('.voice-progress-fill');
+    const durationEl = container.querySelector('.voice-duration');
+    const track = container.querySelector('.voice-progress-track');
+    if (!audioEl) return;
+
+    audioEl.addEventListener('loadedmetadata', () => {
+        if (isFinite(audioEl.duration)) durationEl.textContent = formatTime(audioEl.duration);
+    });
+    audioEl.addEventListener('timeupdate', () => {
+        if (audioEl.duration) {
+            fill.style.width = (audioEl.currentTime / audioEl.duration * 100) + '%';
+            durationEl.textContent = formatTime(audioEl.duration - audioEl.currentTime);
+        }
+    });
+    audioEl.addEventListener('ended', () => {
+        playBtn.textContent = '▶';
+        fill.style.width = '0%';
+        durationEl.textContent = formatTime(audioEl.duration || 0);
+    });
+    playBtn.addEventListener('click', () => {
+        if (audioEl.paused) {
+            document.querySelectorAll('audio.voice-audio-el').forEach(a => { if (a !== audioEl) a.pause(); });
+            audioEl.play();
+            playBtn.textContent = '⏸';
+        } else {
+            audioEl.pause();
+            playBtn.textContent = '▶';
+        }
+    });
+    track.addEventListener('click', (e) => {
+        const rect = track.getBoundingClientRect();
+        const ratio = (e.clientX - rect.left) / rect.width;
+        if (audioEl.duration) audioEl.currentTime = Math.max(0, Math.min(1, ratio)) * audioEl.duration;
+    });
+}
+
 function updateMessageTick(msgId, data) {
     if (!data || data.sender !== 'user') return;
     const el = document.getElementById('msg-' + msgId);
@@ -484,7 +562,15 @@ function renderMessage(msgId, data) {
     } else if (data.type === 'video') {
         msgDiv.innerHTML = `<video src="${data.file_url}" controls onclick="openLightbox('${data.file_url}', 'video')"></video>`;
     } else if (data.type === 'audio') {
-        msgDiv.innerHTML = `<audio src="${data.file_url}" controls preload="metadata"></audio>`;
+        msgDiv.innerHTML = `
+            <div class="voice-msg">
+                <button class="voice-play-btn" type="button">▶</button>
+                <span class="voice-icon">🎤</span>
+                <div class="voice-progress-track"><div class="voice-progress-fill"></div></div>
+                <span class="voice-duration">0:00</span>
+                <audio class="voice-audio-el" src="${data.file_url}" preload="metadata" style="display:none;"></audio>
+            </div>`;
+        initVoiceMessage(msgDiv);
     }
 
     let tickHtml = '';
@@ -569,30 +655,12 @@ document.getElementById('mediaInput').addEventListener('change', async (e) => {
     e.target.value = '';
 });
 
-let mediaRecorder, audioChunks = [], isRecording = false;
+let isRecording = false;
 
 document.getElementById('voiceBtn').addEventListener('click', async () => {
     if (!isRecording) {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-            mediaRecorder = new MediaRecorder(stream);
-            audioChunks = [];
-
-            mediaRecorder.ondataavailable = (e) => audioChunks.push(e.data);
-            mediaRecorder.onstop = async () => {
-                const rawBlob = new Blob(audioChunks, { type: 'audio/webm' });
-                db.ref('chats/' + myChatDocId + '/presence/userRecording').set(false);
-                let wavBlob;
-                try {
-                    wavBlob = await convertBlobToWav(rawBlob);
-                } catch (e) {
-                    console.error('WAV conversion failed, sending raw recording:', e);
-                    wavBlob = rawBlob;
-                }
-                await sendMessage('audio', wavBlob);
-            };
-
-            mediaRecorder.start();
+            await startRawRecording();
             isRecording = true;
             document.getElementById('voiceBtn').textContent = '🛑';
             document.getElementById('voiceBtn').classList.add('recording');
@@ -602,10 +670,12 @@ document.getElementById('voiceBtn').addEventListener('click', async () => {
             alert('Microphone access denied');
         }
     } else {
-        mediaRecorder.stop();
         isRecording = false;
         document.getElementById('voiceBtn').textContent = '🎙️';
         document.getElementById('voiceBtn').classList.remove('recording');
+        db.ref('chats/' + myChatDocId + '/presence/userRecording').set(false);
+        const wavBlob = stopRawRecording();
+        await sendMessage('audio', wavBlob);
     }
 });
 
