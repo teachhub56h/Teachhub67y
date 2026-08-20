@@ -351,11 +351,15 @@ async function actualSend(job) {
         console.log('✅ Message saved!');
     } catch (error) {
         console.error('❌ Error:', error);
-        markMessageFailed(job);
+        markMessageFailed(job, error.message);
     }
 }
 
-function markMessageFailed(job) {
+function markMessageFailed(job, errMsg) {
+    if (!job.alerted) {
+        job.alerted = true;
+        alert('❌ Could not send: ' + (errMsg || 'unknown error') + '\n\nPlease screenshot this and show it to support.');
+    }
     const el = document.getElementById('msg-' + job.localId);
     if (el) {
         const meta = el.querySelector('.msg-meta');
