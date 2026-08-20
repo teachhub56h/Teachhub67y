@@ -74,6 +74,8 @@
         .msg video { max-width: 100%; max-height: 200px; border-radius: 6px; display: block; cursor: pointer; }
         .msg audio { max-width: 100%; display: block; outline: none; }
         .msg-meta { align-self: flex-end; display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #6b7a85; user-select: none; }
+        .msg-delete-btn { cursor: pointer; margin-left: 4px; opacity: 0.6; }
+        .msg-delete-btn:hover { opacity: 1; }
 
         .tick { display: inline-block; font-weight: bold; font-size: 12px; margin-left: 2px; }
         .tick.sent { color: #8696a0; }
@@ -673,7 +675,7 @@ function updateMessageTick(msgId, data) {
     const meta = el.querySelector('.msg-meta');
     if (meta) {
         const timeSpan = meta.querySelector('span');
-        meta.innerHTML = (timeSpan ? timeSpan.outerHTML : '') + ' ' + tickHtml;
+        meta.innerHTML = (timeSpan ? timeSpan.outerHTML : '') + ' ' + tickHtml + ` <span class="msg-delete-btn" title="Delete for everyone" onclick="deleteMessageForEveryone('${msgId}')">🗑</span>`;
     }
 }
 
@@ -703,10 +705,23 @@ function renderMessage(msgId, data) {
 
     const metaDiv = document.createElement('div');
     metaDiv.classList.add('msg-meta');
-    metaDiv.innerHTML = `<span>${data.time_label || ''}</span> ${tickHtml}`;
+    metaDiv.innerHTML = `<span>${data.time_label || ''}</span> ${tickHtml} <span class="msg-delete-btn" title="Delete for everyone" onclick="deleteMessageForEveryone('${msgId}')">🗑</span>`;
     msgDiv.appendChild(metaDiv);
     chatBox.appendChild(msgDiv);
 }
+
+// Deletes one message from the database - since both the admin panel and
+// the student app listen for real-time removals, it disappears from
+// BOTH screens immediately, not just this one.
+window.deleteMessageForEveryone = function(msgId) {
+    if (!activeDocId) return;
+    if (!confirm('Delete this message for everyone?')) return;
+    db.ref('chats/' + activeDocId + '/messages/' + msgId).remove()
+        .then(() => {
+            db.ref('chatSummary/' + activeDocId + '/msgCount').transaction(c => Math.max((c || 0) - 1, 0));
+        })
+        .catch((err) => alert('Could not delete: ' + err.message));
+};
 
 // ==========================================
 // 🔥 LIGHTBOX
