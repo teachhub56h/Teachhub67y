@@ -34,7 +34,9 @@
         .user-item.selected { background: #e3f2fd; border-left: 4px solid #1B84D8; }
 
         .user-clickable-area { display: flex; align-items: center; gap: 15px; width: 100%; cursor: pointer; }
-        .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #1B4F72; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; flex-shrink: 0; }
+        .user-avatar { width: 45px; height: 45px; border-radius: 50%; background: #1B4F72; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; font-size: 18px; flex-shrink: 0; position: relative; }
+        .online-dot { position: absolute; bottom: -1px; right: -1px; width: 13px; height: 13px; border-radius: 50%; background: #8696a0; border: 2px solid #ffffff; }
+        .online-dot.online { background: #43a047; }
         .user-details { flex: 1; min-width: 0; }
         .user-phone { font-size: 15px; font-weight: 600; color: #16232e; }
         .user-subtitle { font-size: 12px; color: #6b7a85; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
@@ -347,7 +349,8 @@ function loadPrivacySetting() {
 }
 
 window.togglePrivacy = function() {
-    db.ref('adminSettings/showPresence').set(!showPresenceToAdmin);
+    db.ref('adminSettings/showPresence').set(!showPresenceToAdmin)
+        .catch((err) => alert('Could not update privacy setting: ' + err.message));
 };
 
 // ==========================================
@@ -539,7 +542,7 @@ function loadInbox() {
                            onchange="toggleUserSelection('${docId}', this)" 
                            ${isSelected ? 'checked' : ''}>
                     <div class="user-clickable-area" onclick="window.openChat('${docId}', '${userName}')">
-                        <div class="user-avatar">🎓</div>
+                        <div class="user-avatar">🎓<span class="online-dot ${docData.online ? 'online' : ''}"></span></div>
                         <div class="user-details">
                             <div class="user-phone">${userName}</div>
                             <div class="user-subtitle">${docData.lastMessageText ? docData.lastMessageText : ('ID: ' + docId.substring(0, 12) + '... | Msgs: ' + msgCount)}</div>
