@@ -124,7 +124,6 @@
 
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-database-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-storage-compat.js"></script>
 
 <script>
 // ==========================================
@@ -143,7 +142,6 @@ const firebaseConfig = {
 
 firebase.initializeApp(firebaseConfig);
 const db = firebase.database();
-const storage = firebase.storage();
 
 // ==========================================
 // 🔥 CONFIG
@@ -152,18 +150,22 @@ const MAX_MESSAGES_PER_CHAT = 30;
 const TYPING_TIMEOUT_MS = 2500;
 
 // ==========================================
-// 🔥 MEDIA STORAGE (images/videos/audio - no more ImgBB)
+// 🔥 CLOUDINARY (images, videos, and audio all go here now)
 // ==========================================
-async function uploadMediaToStorage(file, chatId, kind) {
-    let ext = 'bin';
-    if (kind === 'audio') ext = 'webm';
-    else if (file.name && file.name.includes('.')) ext = file.name.split('.').pop();
-    else if (kind === 'image') ext = 'jpg';
-    else if (kind === 'video') ext = 'mp4';
-    const filename = 'media/' + chatId + '/' + Date.now() + '_' + kind + '.' + ext;
-    const ref = storage.ref().child(filename);
-    await ref.put(file);
-    return await ref.getDownloadURL();
+const CLOUDINARY_CLOUD_NAME = 'sejb7ryr';
+const CLOUDINARY_UPLOAD_PRESET = 'ml_default';
+
+async function uploadMediaToCloudinary(file) {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/auto/upload`, {
+        method: 'POST',
+        body: formData
+    });
+    const data = await res.json();
+    if (!data.secure_url) throw new Error(data.error?.message || 'Upload failed');
+    return data.secure_url;
 }
 
 async function trimMessages(chatId, maxCount) {
@@ -177,17 +179,9 @@ async function trimMessages(chatId, maxCount) {
                 .limitToFirst(excess)
                 .once('value');
             const updates = {};
-            const urlsToDelete = [];
-            oldestSnap.forEach(child => {
-                updates[child.key] = null;
-                const val = child.val();
-                if (val && val.type !== 'text' && val.file_url) urlsToDelete.push(val.file_url);
-            });
+            oldestSnap.forEach(child => { updates[child.key] = null; });
             await db.ref('chats/' + chatId + '/messages').update(updates);
             await db.ref('chatSummary/' + chatId + '/msgCount').transaction(c => Math.max((c || 0) - excess, 0));
-            urlsToDelete.forEach(url => {
-                try { storage.refFromURL(url).delete().catch(() => {}); } catch (e) {}
-            });
         }
     } catch (e) {
         console.error('trimMessages error:', e);
@@ -242,25 +236,19 @@ function setupPresence() {
         db.ref('chatSummary/' + myChatDocId + '/online').set(isVisible);
     });
 
-    // Watch the admin's presence (only shown if the admin has their
-    // privacy toggle turned on).
     db.ref('chats/' + myChatDocId + '/presence').on('value', (snapshot) => {
         const p = snapshot.val() || {};
         if (p.adminRecording) {
-            showingPeerActivity = true;
             notifStatusEl.textContent = '🎙️ recording a voice note...';
             notifStatusEl.classList.add('active-indicator');
         } else if (p.adminTyping) {
-            showingPeerActivity = true;
             notifStatusEl.textContent = '✍️ typing...';
             notifStatusEl.classList.add('active-indicator');
         } else if (p.adminOnline) {
-            showingPeerActivity = true;
-            notifStatusEl.textContent = '🟢 online';
+            notifStatusEl.textContent = '🟢 Online';
             notifStatusEl.classList.remove('active-indicator');
         } else {
-            showingPeerActivity = false;
-            notifStatusEl.textContent = baseStatusText;
+            notifStatusEl.textContent = '⚫ Offline';
             notifStatusEl.classList.remove('active-indicator');
         }
     });
@@ -323,7 +311,7 @@ async function actualSend(job) {
         if (type === 'text') {
             messageText = content;
         } else {
-            fileUrl = await uploadMediaToStorage(content, myChatDocId, type);
+            fileUrl = await uploadMediaToCloudinary(content);
             messageText = type === 'audio' ? 'Sent a voice note' : `Sent a ${type}`;
         }
 
