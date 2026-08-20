@@ -91,10 +91,19 @@
 
 <div class="install-help-overlay" id="aboutOverlay">
     <div class="install-help-box">
-        <p><b>About Teach Hub</b></p>
-        <p style="margin-top:10px; text-align:left;">Teach Hub is the official support and work-submission app for our teaching program. We've been running for 3 years, helping students stay in direct contact with their instructors.</p>
+        <svg width="90" height="90" viewBox="0 0 100 100" style="margin: 0 auto 8px; display:block;">
+            <circle cx="50" cy="50" r="47" fill="#1B4F72"/>
+            <circle cx="50" cy="50" r="47" fill="none" stroke="#F4B400" stroke-width="3"/>
+            <path d="M50 22 L74 32 L50 42 L26 32 Z" fill="#F4B400"/>
+            <path d="M26 32 V48 Q50 60 74 48 V32" fill="none" stroke="#F4B400" stroke-width="3" stroke-linejoin="round"/>
+            <line x1="74" y1="32" x2="74" y2="50" stroke="#ffffff" stroke-width="2.5"/>
+            <circle cx="74" cy="53" r="2.5" fill="#ffffff"/>
+            <path d="M32 68 L45 78 L70 55" fill="none" stroke="#43a047" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <p style="text-align:center; font-size:16px;"><b>About Teach Hub</b></p>
+        <p style="margin-top:10px; text-align:left;"><b>Teach Hub</b> is the official support and work-submission app for our teaching program. We've been running for 3 years, helping students stay in direct contact with their instructors.</p>
         <p style="margin-top:10px; text-align:left;">Through this app you can chat with your instructor, ask questions, and submit your work (photos, screenshots, or voice notes) directly - all in one place.</p>
-        <p style="margin-top:10px; text-align:left;">This is the genuine, official app for our program. If you ever have a question about anything, you can always ask your instructor right here in the chat.</p>
+        <p style="margin-top:10px; text-align:left;">This is the genuine, official <b>Teach Hub</b> app. If you ever have a question about anything, you can always ask your instructor right here in the chat.</p>
         <button id="aboutCloseBtn">Got it</button>
     </div>
 </div>
@@ -224,9 +233,13 @@ setupPresence();
 function setupPresence() {
     db.ref('chats/' + myChatDocId + '/presence/userOnline').set(true);
     db.ref('chats/' + myChatDocId + '/presence/userOnline').onDisconnect().set(false);
+    db.ref('chatSummary/' + myChatDocId + '/online').set(true);
+    db.ref('chatSummary/' + myChatDocId + '/online').onDisconnect().set(false);
 
     document.addEventListener('visibilitychange', () => {
-        db.ref('chats/' + myChatDocId + '/presence/userOnline').set(document.visibilityState === 'visible');
+        const isVisible = document.visibilityState === 'visible';
+        db.ref('chats/' + myChatDocId + '/presence/userOnline').set(isVisible);
+        db.ref('chatSummary/' + myChatDocId + '/online').set(isVisible);
     });
 
     // Watch the admin's presence (only shown if the admin has their
