@@ -42,15 +42,16 @@
         .user-subtitle { font-size: 12px; color: #6b7a85; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
         .status-container { display: flex; align-items: center; gap: 8px; margin-top: 8px; padding-top: 8px; border-top: 1px dashed #e1e1e1; flex-wrap: wrap; }
-        .status-tag { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 12px; color: white; background-color: #8696a0; }
-        .status-tag.pending { background-color: #e53935; }
-        .status-tag.plan1 { background-color: #1e88e5; }
-        .status-tag.plan2 { background-color: #8e24aa; }
-        .status-tag.completed { background-color: #43a047; }
-        .status-tag.custom { background-color: #f4511e; }
+        .label-pill { font-size: 11px; font-weight: 600; padding: 3px 10px; border-radius: 12px; color: #16232e; }
 
-        .status-selector { font-size: 12px; padding: 3px 6px; border-radius: 4px; border: 1px solid #ccc; outline: none; background: #fff; cursor: pointer; }
-        .remove-status-btn { font-size: 11px; padding: 3px 6px; background: #d32f2f; color: white; border: none; border-radius: 4px; cursor: pointer; }
+        .label-chooser-box { background: #fff; border-radius: 14px; padding: 20px; width: 100%; max-width: 320px; max-height: 80vh; overflow-y: auto; }
+        .label-chooser-box h3 { font-size: 18px; margin-bottom: 14px; color: #16232e; }
+        .label-new-btn { background: none; border: none; color: #1e88e5; font-weight: 700; font-size: 15px; cursor: pointer; padding: 8px 0; display: flex; align-items: center; gap: 6px; }
+        .label-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0; cursor: pointer; }
+        .label-dot { width: 14px; height: 14px; border-radius: 50%; flex-shrink: 0; }
+        .label-name { flex: 1; font-size: 15px; color: #16232e; }
+        .label-row input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; }
+        .label-done-btn { width: 100%; margin-top: 16px; padding: 12px; background: #1B4F72; color: #fff; border: none; border-radius: 8px; font-weight: 700; font-size: 15px; cursor: pointer; }
         .unread-badge { background-color: #1B84D8; color: white; font-size: 11px; font-weight: bold; min-width: 20px; height: 20px; border-radius: 50%; display: flex; align-items: center; justify-content: center; padding: 0 5px; }
         .delete-user-btn { font-size: 12px; padding: 4px 10px; background: #c62828; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
         .delete-user-btn:hover { background: #b71c1c; }
@@ -152,6 +153,15 @@
             </div>
             <button class="send-btn" id="sendBtn">➤</button>
         </div>
+    </div>
+</div>
+
+<div class="media-lightbox" id="labelChooserOverlay">
+    <div class="label-chooser-box">
+        <h3>Choose list</h3>
+        <button class="label-new-btn" onclick="createNewLabelPrompt()">➕ New list</button>
+        <div id="labelListContainer"></div>
+        <button class="label-done-btn" onclick="closeLabelChooser()">Done</button>
     </div>
 </div>
 
@@ -310,7 +320,16 @@ async function checkStaleUsers() {
         for (const [docId, docData] of Object.entries(summaries)) {
             const last = docData.lastUpdated || 0;
             if (now - last > INACTIVITY_LIMIT_MS) {
-                await deleteUserCompletely(docId, getUserFriendlyName(docId));
+                // FIX: re-check this one user fresh, right before deleting.
+                // The list above was a snapshot from a moment ago - if the
+                // user sent a new message in the meantime, this catches
+                // that and skips the delete instead of wiping their brand
+                // new message out from under them.
+                const freshSnap = await db.ref('chatSummary/' + docId + '/lastUpdated').once('value');
+                const freshLast = freshSnap.val() || 0;
+                if (Date.now() - freshLast > INACTIVITY_LIMIT_MS) {
+                    await deleteUserCompletely(docId, getUserFriendlyName(docId));
+                }
             }
         }
     } catch (e) {
@@ -349,6 +368,7 @@ auth.onAuthStateChanged((user) => {
         inboxView.style.display = 'flex';
         loadInbox();
         loadPrivacySetting();
+        loadLabelsGlobal();
         checkStaleUsers();
         setInterval(checkStaleUsers, 15 * 60 * 1000);
     } else {
@@ -502,33 +522,92 @@ async function deleteSelectedUsers() {
 }
 
 // ==========================================
-// 🔥 STATUS
+// 🔥 CUSTOM LISTS ("labels") - like WhatsApp Business labels.
+// Hold a user for 2 seconds to open the chooser, create as many named,
+// colored lists as you like, and tick any number onto that user.
 // ==========================================
-async function updateCustomerStatus(docId, newStatus) {
-    try {
-        await db.ref('chats/' + docId + '/statusTag').set(newStatus);
-        await db.ref('chatSummary/' + docId + '/statusTag').set(newStatus);
-    } catch (error) {
-        console.error("Error:", error);
-    }
+let allLabels = {};
+let labelChooserDocId = null;
+const LABEL_COLOR_PALETTE = ['#29b6d8', '#ffca28', '#fb8c00', '#ec407a', '#f6e27a', '#9e9e9e', '#26a69a', '#5c6bc0'];
+
+function loadLabelsGlobal() {
+    db.ref('labels').on('value', (snap) => {
+        allLabels = snap.val() || {};
+    });
 }
 
-window.handleStatusChange = function(selectElement, docId) {
-    const val = selectElement.value;
-    if (val === 'custom') {
-        const customVal = prompt("Enter Custom Status:");
-        if (customVal && customVal.trim() !== "") updateCustomerStatus(docId, customVal.trim());
-        else selectElement.value = "";
-    } else {
-        updateCustomerStatus(docId, val);
+window.openLabelChooser = function(docId) {
+    labelChooserDocId = docId;
+    renderLabelChooserList();
+    document.getElementById('labelChooserOverlay').style.display = 'flex';
+};
+
+window.closeLabelChooser = function() {
+    document.getElementById('labelChooserOverlay').style.display = 'none';
+    labelChooserDocId = null;
+};
+
+async function renderLabelChooserList() {
+    const container = document.getElementById('labelListContainer');
+    const summarySnap = await db.ref('chatSummary/' + labelChooserDocId + '/labels').once('value');
+    const currentLabels = summarySnap.val() || {};
+    const ids = Object.keys(allLabels);
+    if (ids.length === 0) {
+        container.innerHTML = "<div style='padding:10px 0;color:#888;font-size:13px;'>No lists yet. Tap '➕ New list' to create one.</div>";
+        return;
     }
+    container.innerHTML = ids.map(id => {
+        const lbl = allLabels[id];
+        const checked = currentLabels[id] ? 'checked' : '';
+        return `<label class="label-row">
+            <span class="label-dot" style="background:${lbl.color}"></span>
+            <span class="label-name">${lbl.name}</span>
+            <input type="checkbox" ${checked} onchange="toggleUserLabel('${id}', this.checked)">
+        </label>`;
+    }).join('');
+}
+
+window.toggleUserLabel = function(labelId, checked) {
+    if (!labelChooserDocId) return;
+    db.ref('chatSummary/' + labelChooserDocId + '/labels/' + labelId).set(checked ? true : null);
 };
 
-window.removeStatus = function(docId) {
-    if (confirm("Remove status?")) updateCustomerStatus(docId, "");
+window.createNewLabelPrompt = async function() {
+    const name = prompt('Name this new list:');
+    if (!name || !name.trim()) return;
+    const color = LABEL_COLOR_PALETTE[Object.keys(allLabels).length % LABEL_COLOR_PALETTE.length];
+    const newRef = db.ref('labels').push();
+    await newRef.set({ name: name.trim(), color });
+    if (labelChooserDocId) {
+        await db.ref('chatSummary/' + labelChooserDocId + '/labels/' + newRef.key).set(true);
+    }
+    renderLabelChooserList();
 };
 
-window.deleteUser = async function(docId, userName) {
+// ==========================================
+// 🔥 LONG-PRESS (hold 2 seconds) to open the list chooser for a user
+// ==========================================
+let longPressTimer = null;
+let longPressTriggered = false;
+
+function attachLongPress(itemDiv, docId) {
+    const start = () => {
+        longPressTriggered = false;
+        longPressTimer = setTimeout(() => {
+            longPressTriggered = true;
+            openLabelChooser(docId);
+        }, 2000);
+    };
+    const cancel = () => clearTimeout(longPressTimer);
+
+    itemDiv.addEventListener('touchstart', start, { passive: true });
+    itemDiv.addEventListener('touchend', cancel);
+    itemDiv.addEventListener('touchmove', cancel);
+    itemDiv.addEventListener('touchcancel', cancel);
+    itemDiv.addEventListener('mousedown', start);
+    itemDiv.addEventListener('mouseup', cancel);
+    itemDiv.addEventListener('mouseleave', cancel);
+}
     if (!confirm(`Delete "${userName}"?`)) return;
     await deleteUserCompletely(docId, userName);
     if (activeDocId === docId) goBackToInbox();
@@ -568,18 +647,14 @@ function loadInbox() {
 
         for (const [docId, docData] of sortedChats) {
             const userName = getUserFriendlyName(docId);
-            const activeStatus = docData.statusTag || "";
-
-            let tagClass = "status-tag";
-            if (activeStatus.toLowerCase() === "payment pending") tagClass += " pending";
-            else if (activeStatus.toLowerCase() === "plan 1") tagClass += " plan1";
-            else if (activeStatus.toLowerCase() === "plan 2") tagClass += " plan2";
-            else if (activeStatus.toLowerCase() === "completed") tagClass += " completed";
-            else if (activeStatus !== "") tagClass += " custom";
-
             const isSelected = selectedUsers.has(docId);
             const msgCount = docData.msgCount || 0;
             const unreadCount = docData.unreadCount || 0;
+
+            const userLabelIds = docData.labels ? Object.keys(docData.labels).filter(id => docData.labels[id] && allLabels[id]) : [];
+            const labelPillsHtml = userLabelIds.length
+                ? userLabelIds.map(id => `<span class="label-pill" style="background:${allLabels[id].color}">${allLabels[id].name}</span>`).join('')
+                : '<span style="font-size:11px;color:#aaa;">No list (hold 2s to add)</span>';
 
             const itemDiv = document.createElement('div');
             itemDiv.className = `user-item ${isSelected ? 'selected' : ''}`;
@@ -600,20 +675,12 @@ function loadInbox() {
                     </div>
                 </div>
                 <div class="status-container">
-                    ${activeStatus ? `<span class="${tagClass}">${activeStatus}</span>` : '<span style="font-size:11px;color:#aaa;">No tag</span>'}
-                    <select class="status-selector" onchange="handleStatusChange(this, '${docId}')" onclick="event.stopPropagation()">
-                        <option value="" disabled selected>Assign status...</option>
-                        <option value="Payment Pending">Payment Pending</option>
-                        <option value="Plan 1">Plan 1</option>
-                        <option value="Plan 2">Plan 2</option>
-                        <option value="Completed">Completed</option>
-                        <option value="custom">✍️ Custom Status...</option>
-                    </select>
-                    ${activeStatus ? `<button class="remove-status-btn" onclick="event.stopPropagation(); removeStatus('${docId}')">✕ Remove</button>` : ''}
+                    ${labelPillsHtml}
                     <button class="delete-user-btn" onclick="event.stopPropagation(); window.deleteUser('${docId}', '${userName}')">🗑 Delete</button>
                 </div>
             `;
             userListDiv.appendChild(itemDiv);
+            attachLongPress(itemDiv, docId);
         }
     }, (error) => {
         userListDiv.innerHTML = "<div style='padding:20px;text-align:center;color:#c62828;'>❌ Error loading users: " + error.code + " - " + error.message + "</div>";
@@ -646,6 +713,10 @@ function detachChatListeners(docId) {
 // 🔥 OPEN CHAT
 // ==========================================
 window.openChat = function(docId, userName) {
+    if (longPressTriggered) {
+        longPressTriggered = false;
+        return;
+    }
     const previousDocId = activeDocId;
     if (previousDocId && previousDocId !== docId) {
         detachChatListeners(previousDocId);
