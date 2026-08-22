@@ -161,7 +161,20 @@
   .history h3{font-size:12px;text-transform:uppercase;letter-spacing:.5px;color:var(--muted);margin:0 0 8px;}
   .hist-row{display:flex;justify-content:space-between;font-size:13px;padding:7px 0;border-bottom:1px solid var(--line);}
   .hist-row .amt{font-family:'JetBrains Mono',monospace;color:var(--red);font-weight:600;}
+  .hist-note{color:var(--red);font-size:11.5px;margin-top:2px;}
   .hist-empty{font-size:12.5px;color:var(--muted);}
+
+  .note-field label{color:var(--red);}
+  .note-field textarea{color:var(--red);border-color:var(--red);}
+  .note-field textarea::placeholder{color:#e08a75;}
+
+  .actions-row{display:flex;gap:10px;margin-top:6px;align-items:stretch;}
+  .btn-lock{
+    width:44px;flex-shrink:0;border-radius:10px;border:1.5px solid var(--line);
+    background:#f1efe6;font-size:18px;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;padding:0;
+  }
+  .btn-lock.locked{background:#faeae6;border-color:var(--red);}
 </style>
 </head>
 <body>
@@ -231,7 +244,14 @@
     </div>
     <div class="field"><label>Amount to Withdraw (Rs)</label><input id="w_amount" type="number" placeholder="0"></div>
     <div class="err" id="wErr">Enter a valid amount within wallet balance.</div>
-    <div class="sheet-actions">
+
+    <div class="field note-field" id="noteField">
+      <label>Note</label>
+      <textarea id="w_note" rows="2" placeholder="Type anything..."></textarea>
+    </div>
+
+    <div class="actions-row">
+      <button class="btn-lock locked" id="lockBtn" title="Toggle note">🔒</button>
       <button class="btn btn-cancel" id="wCancel">Cancel</button>
       <button class="btn btn-primary" id="wConfirm">Confirm Withdrawal</button>
     </div>
@@ -413,6 +433,27 @@ const w_amount = document.getElementById('w_amount');
 const w_history = document.getElementById('w_history');
 const wErr = document.getElementById('wErr');
 
+let noteLocked = true; // locked = note visible + red
+const lockBtn = document.getElementById('lockBtn');
+const noteField = document.getElementById('noteField');
+const w_note = document.getElementById('w_note');
+
+function updateLockUI(){
+  if(noteLocked){
+    lockBtn.textContent = '🔒';
+    lockBtn.classList.add('locked');
+    noteField.style.display = 'block';
+  } else {
+    lockBtn.textContent = '🔓';
+    lockBtn.classList.remove('locked');
+    noteField.style.display = 'none';
+  }
+}
+lockBtn.addEventListener('click', ()=>{
+  noteLocked = !noteLocked;
+  updateLockUI();
+});
+
 function openWithdraw(id){
   withdrawId = id;
   const s = students.find(x=>x.id===id);
@@ -420,6 +461,9 @@ function openWithdraw(id){
   w_account.textContent = s.account || '—';
   w_wallet.textContent = fmt(s.fee);
   w_amount.value = '';
+  w_note.value = '';
+  noteLocked = true;
+  updateLockUI();
   wErr.classList.remove('show');
   renderHistory(s);
   wOverlay.classList.add('show');
@@ -431,7 +475,10 @@ function renderHistory(s){
     return;
   }
   w_history.innerHTML = hist.slice().reverse().map(h=>`
-    <div class="hist-row"><span>${new Date(h.date).toLocaleDateString('en-GB')}</span><span class="amt">- ${fmt(h.amount)}</span></div>
+    <div class="hist-row-wrap">
+      <div class="hist-row"><span>${new Date(h.date).toLocaleDateString('en-GB')}</span><span class="amt">- ${fmt(h.amount)}</span></div>
+      ${h.note ? `<div class="hist-note">${escapeHtml(h.note)}</div>` : ''}
+    </div>
   `).join('');
 }
 document.getElementById('wCancel').addEventListener('click', ()=> wOverlay.classList.remove('show'));
@@ -447,10 +494,11 @@ document.getElementById('wConfirm').addEventListener('click', ()=>{
   wErr.classList.remove('show');
   s.fee = Number(s.fee) - amt;
   s.history = s.history || [];
-  s.history.push({ amount: amt, date: Date.now() });
+  s.history.push({ amount: amt, date: Date.now(), note: noteLocked ? w_note.value.trim() : '' });
   saveStudents(students);
   w_wallet.textContent = fmt(s.fee);
   w_amount.value = '';
+  w_note.value = '';
   renderHistory(s);
   render();
 });
