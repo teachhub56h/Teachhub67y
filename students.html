@@ -294,10 +294,31 @@ function fmtDateTime(ts){
   }).replace(',', ' •');
 }
 function uid(){
-  return 'S' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  if(window.crypto && crypto.randomUUID){
+    return 'S' + crypto.randomUUID();
+  }
+  return 'S' + Date.now().toString(36) + Math.random().toString(36).slice(2,10) + Math.random().toString(36).slice(2,10);
 }
 
 let students = loadStudents();
+
+/* Safety fix: if any two students ever ended up with the same id
+   (old weak id generator, or manual data edits), give the duplicates
+   fresh unique ids so their histories/wallets never mix. */
+(function fixDuplicateIds(){
+  const seen = new Set();
+  let changed = false;
+  students.forEach(s=>{
+    if(!s.id || seen.has(s.id)){
+      s.id = uid();
+      changed = true;
+    }
+    seen.add(s.id);
+    if(!Array.isArray(s.history)) s.history = [];
+  });
+  if(changed) saveStudents(students);
+})();
+
 let openCardId = null;
 let editingId = null;   // for add/edit sheet
 let withdrawId = null;  // for withdrawal sheet
