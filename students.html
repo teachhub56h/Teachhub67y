@@ -148,6 +148,10 @@
     border-radius:16px;padding:18px;color:#fff;margin-bottom:18px;
     border:1px solid rgba(212,175,55,0.3);
   }
+  .pb-brand{display:flex;align-items:center;gap:9px;margin-bottom:13px;padding-bottom:13px;border-bottom:1px solid rgba(212,175,55,0.25);}
+  .pb-brand-icon{font-size:21px;}
+  .pb-brand-name{font-family:'Sora',sans-serif;font-weight:800;font-size:15px;letter-spacing:2px;color:var(--gold);}
+  .pb-brand-tag{font-size:9.5px;color:#c9d3e2;letter-spacing:.8px;margin-top:2px;text-transform:uppercase;}
   .passbook .pb-row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;}
   .passbook .pb-row + .pb-row{border-top:1px dashed rgba(255,255,255,0.15);}
   .passbook .pb-label{font-size:11px;color:var(--gold-soft);text-transform:uppercase;letter-spacing:.5px;}
@@ -232,6 +236,13 @@
   <div class="sheet">
     <h2>Withdraw Fee</h2>
     <div class="passbook">
+      <div class="pb-brand">
+        <span class="pb-brand-icon">🎓</span>
+        <div>
+          <div class="pb-brand-name">TEACH HUB</div>
+          <div class="pb-brand-tag">Verified Fee Withdrawal</div>
+        </div>
+      </div>
       <div class="pb-name" id="w_name">—</div>
       <div class="pb-row" style="margin-top:8px;">
         <span class="pb-label">Account No.</span>
@@ -274,6 +285,13 @@ function saveStudents(list){
 }
 function fmt(n){
   return 'Rs ' + Number(n||0).toLocaleString('en-PK');
+}
+function fmtDateTime(ts){
+  return new Date(ts).toLocaleString('en-GB', {
+    timeZone:'Asia/Karachi',
+    day:'2-digit', month:'2-digit', year:'numeric',
+    hour:'2-digit', minute:'2-digit', hour12:true
+  }).replace(',', ' •');
 }
 function uid(){
   return 'S' + Date.now().toString(36) + Math.random().toString(36).slice(2,6);
@@ -476,7 +494,7 @@ function renderHistory(s){
   }
   w_history.innerHTML = hist.slice().reverse().map(h=>`
     <div class="hist-row-wrap">
-      <div class="hist-row"><span>${new Date(h.date).toLocaleDateString('en-GB')}</span><span class="amt">- ${fmt(h.amount)}</span></div>
+      <div class="hist-row"><span>${fmtDateTime(h.date)}</span><span class="amt">- ${fmt(h.amount)}</span></div>
       ${h.note ? `<div class="hist-note">${escapeHtml(h.note)}</div>` : ''}
     </div>
   `).join('');
